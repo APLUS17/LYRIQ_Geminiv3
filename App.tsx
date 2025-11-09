@@ -106,24 +106,40 @@ const App: React.FC = () => {
 
     const parseLyricsFromDom = (node: HTMLDivElement): Lyric[] => {
         const lyrics: Lyric[] = [];
-        if (node.innerText.trim() === '') return [];
-
-        node.childNodes.forEach(childNode => {
-            if (childNode.nodeType === Node.ELEMENT_NODE) {
-                const el = childNode as HTMLElement;
-                if (['DIV', 'P'].includes(el.nodeName)) {
-                    const id = el.dataset.lyricId || crypto.randomUUID();
-                    const html = el.innerHTML === '<br>' ? '' : el.innerHTML;
-                    lyrics.push({ id, html });
-                }
-            }
-        });
-
-        if (lyrics.length === 0 && node.innerHTML) {
-             lyrics.push({ id: crypto.randomUUID(), html: node.innerHTML });
+        // An empty editor might contain `<div><br></div>` which has no innerText.
+        // If it's truly empty (no text, no tags), return early.
+        if (node.innerText.trim() === '' && node.innerHTML.trim() === '') {
+            return [];
         }
+
+        const processHtmlContent = (html: string) => {
+            // A piece of HTML representing one empty line might just be a <br> tag.
+            // This is a common pattern in contentEditable.
+            if (html.toLowerCase().trim() === '<br>') {
+                lyrics.push({ id: crypto.randomUUID(), html: '' });
+            } else {
+                // Otherwise, split the content by <br> tags for soft returns.
+                html.split(/<br\s*\/?>/i).forEach(lineHtml => {
+                    lyrics.push({ id: crypto.randomUUID(), html: lineHtml });
+                });
+            }
+        };
+
+        // Find all top-level block elements (divs or paragraphs) created by the editor.
+        const blocks = Array.from(node.children).filter(el => ['DIV', 'P'].includes(el.nodeName));
+        
+        if (blocks.length > 0) {
+            blocks.forEach(block => {
+                processHtmlContent((block as HTMLElement).innerHTML);
+            });
+        } else {
+             // Handle cases where there are no block elements, just text and <br>s directly in the editor.
+             processHtmlContent(node.innerHTML);
+        }
+
         return lyrics;
     };
+
 
     const handleLyricsInput = (sectionId: string, editorNode: HTMLDivElement) => {
         const newLyrics = parseLyricsFromDom(editorNode);
@@ -201,7 +217,6 @@ const App: React.FC = () => {
                             {song.sections.map(section => {
                                 const isDeleting = deletingSections.has(section.id);
                                 const currentTranslateX = (dragState?.sectionId === section.id) ? dragState.translateX : 0;
-                                const totalSyllables = section.lyrics.reduce((sum, lyric) => sum + getSyllableCount(lyric.html), 0);
                                 
                                 return (
                                     <div key={section.id}>
@@ -255,14 +270,6 @@ const App: React.FC = () => {
                                                                     {getSyllableCount(lyric.html)}
                                                                 </div>
                                                             ))}
-                                                            {section.lyrics.length > 1 && (
-                                                                <>
-                                                                    <div className="border-t border-gray-700 my-2 -mr-2"></div>
-                                                                    <div className="text-lg leading-relaxed h-[29px] font-bold text-gray-500">
-                                                                        {totalSyllables}
-                                                                    </div>
-                                                                </>
-                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
