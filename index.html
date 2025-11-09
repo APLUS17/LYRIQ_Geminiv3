@@ -29,6 +29,14 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #5a5a5e;
         }
+        /* Placeholder for contentEditable div */
+        .lyric-editor:empty::before {
+            content: attr(data-placeholder);
+            color: #6b7280; /* text-gray-500 */
+            font-style: italic;
+            cursor: text;
+            pointer-events: none;
+        }
     </style>
 <script type="importmap">
 {
