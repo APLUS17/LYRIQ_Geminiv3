@@ -19,7 +19,8 @@ const App: React.FC = () => {
     const [showSyllableCount, setShowSyllableCount] = useState(false);
     const sectionEditorRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
-    const [geminiModalState, setGeminiModalState] = useState<{ sectionId: string; anchorEl: HTMLElement | null } | null>(null);
+    const [geminiModalSectionId, setGeminiModalSectionId] = useState<string | null>(null);
+    const geminiIconRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
     // Swipe-to-delete state
     const [dragState, setDragState] = useState<{
@@ -283,18 +284,17 @@ const App: React.FC = () => {
 
     const handleGeminiIconClick = (e: React.MouseEvent<HTMLButtonElement>, sectionId: string) => {
         e.stopPropagation();
-        setGeminiModalState(prev => 
-            prev?.sectionId === sectionId ? null : { sectionId, anchorEl: e.currentTarget }
-        );
+        setGeminiModalSectionId(prevId => (prevId === sectionId ? null : sectionId));
     };
 
     const handleGeminiAction = (action: 'suggest' | 'rhyme' | 'rewrite') => {
-        if (geminiModalState) {
-            console.log(`Action: ${action} on section: ${geminiModalState.sectionId}`);
+        if (geminiModalSectionId) {
+            console.log(`Action: ${action} on section: ${geminiModalSectionId}`);
             // Gemini API calls can be triggered from here
         }
     };
 
+    const anchorEl = geminiModalSectionId ? geminiIconRefs.current[geminiModalSectionId] : null;
 
     return (
         <div className="h-screen flex flex-col">
@@ -384,6 +384,7 @@ const App: React.FC = () => {
                                                         >{section.title}</h3>
                                                         {isUnstructured && (
                                                             <button
+                                                                ref={el => { geminiIconRefs.current[section.id] = el; }}
                                                                 type="button"
                                                                 aria-label="Gemini Actions"
                                                                 onClick={(e) => handleGeminiIconClick(e, section.id)}
@@ -432,10 +433,10 @@ const App: React.FC = () => {
                     </div>
                 </div>
             </main>
-            {geminiModalState?.anchorEl && (
+            {geminiModalSectionId && anchorEl && (
                 <GeminiActionModal
-                    anchorEl={geminiModalState.anchorEl}
-                    onClose={() => setGeminiModalState(null)}
+                    anchorEl={anchorEl}
+                    onClose={() => setGeminiModalSectionId(null)}
                     onAction={handleGeminiAction}
                 />
             )}
