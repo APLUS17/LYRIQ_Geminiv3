@@ -382,16 +382,16 @@ const App: React.FC = () => {
                                                             onPaste={handleTitlePaste}
                                                             className="w-fit text-gray-500 font-semibold tracking-wider text-sm uppercase outline-none focus:ring-1 focus:ring-gray-500 rounded-md"
                                                         >{section.title}</h3>
-                                                        {isUnstructured && (
-                                                            <button
-                                                                ref={el => { geminiIconRefs.current[section.id] = el; }}
-                                                                type="button"
-                                                                aria-label="Gemini Actions"
-                                                                onClick={(e) => handleGeminiIconClick(e, section.id)}
-                                                            >
-                                                                <GeminiIcon className="h-[15px] w-[15px] text-blue-400 flex-shrink-0" />
-                                                            </button>
-                                                        )}
+                                                        <button
+                                                            ref={el => { geminiIconRefs.current[section.id] = el; }}
+                                                            type="button"
+                                                            aria-label="Gemini Actions"
+                                                            onClick={(e) => handleGeminiIconClick(e, section.id)}
+                                                            className={`transition-all duration-300 ease-in-out ${isUnstructured ? 'w-[15px] opacity-100' : 'w-0 opacity-0'}`}
+                                                            tabIndex={isUnstructured ? 0 : -1}
+                                                        >
+                                                            <GeminiIcon className="h-[15px] w-[15px] text-blue-400 flex-shrink-0" />
+                                                        </button>
                                                     </div>
                                                    
                                                     <div className="flex items-start">
