@@ -27,10 +27,10 @@ function countSyllables(word: string): number {
     return vowelGroups.length > 0 ? vowelGroups.length : 1;
 }
 
-export function getSyllableCount(html: string): number {
+export function getSyllableCount(html: string): number | null {
     const line = stripHtml(html);
     if (!line || line.trim() === '') {
-        return 0;
+        return null;
     }
     return line
         .trim()

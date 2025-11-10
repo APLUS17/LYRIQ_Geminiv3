@@ -2,8 +2,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Song, Section, Lyric } from './types';
 import { getSyllableCount } from './services/syllableService';
-import { UnderlineIcon, SyllableCountIcon, PlusIcon, TrashIcon } from './components/Icons';
+import { UnderlineIcon, SyllableCountIcon, PlusIcon, TrashIcon, GeminiIcon } from './components/Icons';
 import SectionModal from './components/SectionModal';
+import GeminiActionModal from './components/GeminiActionModal';
 
 const initialSong: Song = {
   sections: [
@@ -18,6 +19,7 @@ const App: React.FC = () => {
     const [showSyllableCount, setShowSyllableCount] = useState(false);
     const sectionEditorRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
     const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+    const [geminiModalState, setGeminiModalState] = useState<{ sectionId: string; anchorEl: HTMLElement | null } | null>(null);
 
     // Swipe-to-delete state
     const [dragState, setDragState] = useState<{
@@ -29,10 +31,21 @@ const App: React.FC = () => {
     const [deletingSections, setDeletingSections] = useState<Set<string>>(new Set());
     const deleteTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
     
+    // Drag-and-drop reorder state
+    const [reorderState, setReorderState] = useState<{
+        sectionId: string;
+        startIndex: number;
+        initialY: number;
+        currentY: number;
+        draggedElHeight: number;
+    } | null>(null);
+    const [dropIndex, setDropIndex] = useState<number | null>(null);
+    const longPressTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const sectionContainerRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
     useEffect(() => {
       document.execCommand('defaultParagraphSeparator', false, 'div');
       
-      // Cleanup timeouts on unmount to prevent memory leaks
       const timeouts = deleteTimeouts.current;
       return () => {
           timeouts.forEach(clearTimeout);
@@ -46,7 +59,116 @@ const App: React.FC = () => {
         }));
     }, []);
 
+    const handleGestureStart = useCallback((e: React.MouseEvent | React.TouchEvent, sectionId: string) => {
+        if (isUnstructured || reorderState) return;
+
+        const target = e.target as HTMLElement;
+        if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
+            return;
+        }
+
+        const startX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const startY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        if (longPressTimeout.current) {
+            clearTimeout(longPressTimeout.current);
+        }
+
+        longPressTimeout.current = setTimeout(() => {
+            const startIndex = song.sections.findIndex(s => s.id === sectionId);
+            const draggedElHeight = sectionContainerRefs.current[sectionId]?.offsetHeight || 0;
+
+            if (startIndex !== -1) {
+                setReorderState({
+                    sectionId,
+                    startIndex,
+                    initialY: startY,
+                    currentY: startY,
+                    draggedElHeight,
+                });
+                setDropIndex(startIndex);
+                document.body.style.userSelect = 'none';
+                document.body.style.cursor = 'grabbing';
+            }
+            setDragState(null); // Cancel swipe
+            longPressTimeout.current = null;
+        }, 300);
+
+        setDragState({
+            sectionId,
+            startX,
+            isDragging: true,
+            translateX: 0,
+        });
+    }, [isUnstructured, song.sections, reorderState]);
+
+    const handleGestureMove = useCallback((e: MouseEvent | TouchEvent) => {
+        if (reorderState) {
+            e.preventDefault();
+            const currentY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+            setReorderState(prev => prev ? { ...prev, currentY } : null);
+
+            let newDropIndex = reorderState.startIndex;
+            const { startIndex } = reorderState;
+            for (let i = 0; i < song.sections.length; i++) {
+                if (i === startIndex) continue;
+                const sectionId = song.sections[i].id;
+                const ref = sectionContainerRefs.current[sectionId];
+                if (ref) {
+                    const rect = ref.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    if (startIndex < i && currentY > midY) {
+                        newDropIndex = i;
+                    }
+                    if (startIndex > i && currentY < midY) {
+                        newDropIndex = i;
+                        break;
+                    }
+                }
+            }
+            setDropIndex(newDropIndex);
+            return;
+        }
+
+        if (!dragState || !dragState.isDragging) return;
+
+        const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const diff = currentX - dragState.startX;
+
+        if (Math.abs(diff) > 5 && longPressTimeout.current) {
+            clearTimeout(longPressTimeout.current);
+            longPressTimeout.current = null;
+        }
+
+        if (longPressTimeout.current) return;
+
+        const translateX = Math.min(0, diff);
+        setDragState(prev => prev ? { ...prev, translateX } : null);
+    }, [dragState, reorderState, song.sections]);
+    
     const handleGestureEnd = useCallback(() => {
+        if (longPressTimeout.current) {
+            clearTimeout(longPressTimeout.current);
+            longPressTimeout.current = null;
+        }
+
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        
+        if (reorderState && dropIndex !== null) {
+            const { startIndex } = reorderState;
+            if (startIndex !== dropIndex) {
+                setSong(prevSong => {
+                    const newSections = [...prevSong.sections];
+                    const [removed] = newSections.splice(startIndex, 1);
+                    newSections.splice(dropIndex, 0, removed);
+                    return { ...prevSong, sections: newSections };
+                });
+            }
+        }
+        setReorderState(null);
+        setDropIndex(null);
+
         if (!dragState) return;
         const { sectionId, translateX } = dragState;
         const SWIPE_THRESHOLD = -window.innerWidth / 3.5;
@@ -60,39 +182,13 @@ const App: React.FC = () => {
         }
         
         setDragState(null);
-    }, [dragState, deleteSection]);
-
-    const handleGestureMove = useCallback((e: MouseEvent | TouchEvent) => {
-        if (!dragState || !dragState.isDragging) return;
-
-        const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-        const diff = currentX - dragState.startX;
-        const translateX = Math.min(0, diff); // Only allow swiping left
-
-        setDragState(prev => prev ? { ...prev, translateX } : null);
-    }, [dragState]);
-
-    const handleGestureStart = useCallback((e: React.MouseEvent | React.TouchEvent, sectionId: string) => {
-        if (isUnstructured) return;
-
-        const target = e.target as HTMLElement;
-        if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
-            return;
-        }
-
-        const startX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-        setDragState({
-            sectionId,
-            startX,
-            isDragging: true,
-            translateX: 0,
-        });
-    }, [isUnstructured]);
+    }, [dragState, deleteSection, reorderState, dropIndex]);
     
     useEffect(() => {
-        if (dragState?.isDragging) {
+        const isInteracting = dragState?.isDragging || !!reorderState;
+        if (isInteracting) {
             window.addEventListener('mousemove', handleGestureMove);
-            window.addEventListener('touchmove', handleGestureMove);
+            window.addEventListener('touchmove', handleGestureMove, { passive: false });
             window.addEventListener('mouseup', handleGestureEnd);
             window.addEventListener('touchend', handleGestureEnd);
         }
@@ -102,30 +198,24 @@ const App: React.FC = () => {
             window.removeEventListener('mouseup', handleGestureEnd);
             window.removeEventListener('touchend', handleGestureEnd);
         };
-    }, [dragState?.isDragging, handleGestureMove, handleGestureEnd]);
+    }, [dragState?.isDragging, reorderState, handleGestureMove, handleGestureEnd]);
 
     const parseLyricsFromDom = (node: HTMLDivElement): Lyric[] => {
         const lyrics: Lyric[] = [];
-        // An empty editor might contain `<div><br></div>` which has no innerText.
-        // If it's truly empty (no text, no tags), return early.
         if (node.innerText.trim() === '' && node.innerHTML.trim() === '') {
             return [];
         }
 
         const processHtmlContent = (html: string) => {
-            // A piece of HTML representing one empty line might just be a <br> tag.
-            // This is a common pattern in contentEditable.
             if (html.toLowerCase().trim() === '<br>') {
                 lyrics.push({ id: crypto.randomUUID(), html: '' });
             } else {
-                // Otherwise, split the content by <br> tags for soft returns.
                 html.split(/<br\s*\/?>/i).forEach(lineHtml => {
                     lyrics.push({ id: crypto.randomUUID(), html: lineHtml });
                 });
             }
         };
 
-        // Find all top-level block elements (divs or paragraphs) created by the editor.
         const blocks = Array.from(node.children).filter(el => ['DIV', 'P'].includes(el.nodeName));
         
         if (blocks.length > 0) {
@@ -133,7 +223,6 @@ const App: React.FC = () => {
                 processHtmlContent((block as HTMLElement).innerHTML);
             });
         } else {
-             // Handle cases where there are no block elements, just text and <br>s directly in the editor.
              processHtmlContent(node.innerHTML);
         }
 
@@ -192,12 +281,27 @@ const App: React.FC = () => {
         document.execCommand('insertText', false, text);
     };
 
+    const handleGeminiIconClick = (e: React.MouseEvent<HTMLButtonElement>, sectionId: string) => {
+        e.stopPropagation();
+        setGeminiModalState(prev => 
+            prev?.sectionId === sectionId ? null : { sectionId, anchorEl: e.currentTarget }
+        );
+    };
+
+    const handleGeminiAction = (action: 'suggest' | 'rhyme' | 'rewrite') => {
+        if (geminiModalState) {
+            console.log(`Action: ${action} on section: ${geminiModalState.sectionId}`);
+            // Gemini API calls can be triggered from here
+        }
+    };
+
+
     return (
         <div className="h-screen flex flex-col">
             <main className="flex-grow py-8 max-w-screen-xl mx-auto px-4 w-full h-full">
                 <div className="bg-[#1c1c1e] rounded-lg h-full flex flex-col overflow-hidden">
                     <div className="relative flex items-center justify-between px-6 py-4 flex-shrink-0">
-                        <h2 className="text-2xl font-bold text-gray-200">Lyrics</h2>
+                        <h2 className="text-2xl font-bold text-gray-200">Lyriq</h2>
                         <div className="flex items-center space-x-4">
                             <button type="button" onClick={() => setIsUnstructured(prev => !prev)} aria-label="Toggle unstructured view">
                                 <UnderlineIcon active={isUnstructured} />
@@ -214,9 +318,40 @@ const App: React.FC = () => {
 
                     <div className="flex-grow overflow-y-auto">
                         <div className="pt-6 px-6 pb-24">
-                            {song.sections.map(section => {
+                            {song.sections.map((section, index) => {
                                 const isDeleting = deletingSections.has(section.id);
                                 const currentTranslateX = (dragState?.sectionId === section.id) ? dragState.translateX : 0;
+                                
+                                const isBeingDragged = reorderState?.sectionId === section.id;
+                                let containerStyle = {};
+                                let containerClasses = `transition-transform duration-300 ease-in-out`;
+                                
+                                if (reorderState) {
+                                    const { startIndex, currentY, initialY, draggedElHeight } = reorderState;
+                                    const finalDropIndex = dropIndex ?? startIndex;
+
+                                    if (isBeingDragged) {
+                                        containerStyle = {
+                                            transform: `translateY(${currentY - initialY}px)`,
+                                            zIndex: 50,
+                                            cursor: 'grabbing',
+                                        };
+                                        containerClasses = ''; // no transition while dragging
+                                    } else {
+                                        let isShifted = false;
+                                        let shiftAmount = 0;
+                                        if (startIndex < finalDropIndex && index > startIndex && index <= finalDropIndex) {
+                                            isShifted = true;
+                                            shiftAmount = -draggedElHeight - (isUnstructured ? 24 : 32); // mb-6 or mb-8
+                                        } else if (startIndex > finalDropIndex && index < startIndex && index >= finalDropIndex) {
+                                            isShifted = true;
+                                            shiftAmount = draggedElHeight + (isUnstructured ? 24 : 32);
+                                        }
+                                        if (isShifted) {
+                                            containerStyle = { transform: `translateY(${shiftAmount}px)` };
+                                        }
+                                    }
+                                }
                                 
                                 return (
                                     <div key={section.id}>
@@ -224,10 +359,11 @@ const App: React.FC = () => {
                                             className={`transition-all duration-500 ease-in-out ${isUnstructured ? 'mb-0' : 'mb-8'} ${isDeleting ? 'max-h-0 opacity-0 !mb-0' : 'max-h-[500px]'}`}
                                         >
                                             <div
-                                                className="relative"
+                                                ref={el => { sectionContainerRefs.current[section.id] = el; }}
+                                                className={`relative ${containerClasses}`}
+                                                style={containerStyle}
                                                 onMouseDown={(e) => handleGestureStart(e, section.id)}
                                                 onTouchStart={(e) => handleGestureStart(e, section.id)}
-                                                style={{ touchAction: 'pan-y' }}
                                             >
                                                 <div className={`absolute inset-0 rounded-lg flex justify-end items-center pr-8 pointer-events-none ${!isUnstructured ? 'bg-red-600' : ''}`}>
                                                     {!isUnstructured && <TrashIcon />}
@@ -235,16 +371,27 @@ const App: React.FC = () => {
 
                                                 <div
                                                     style={{ transform: `translateX(${currentTranslateX}px)` }}
-                                                    className={`relative transition-all duration-500 ease-in-out ${dragState?.sectionId === section.id && dragState?.isDragging ? '!duration-0' : ''} ${isUnstructured ? 'bg-[#1c1c1e] shadow-none p-0 mb-6' : 'bg-[#2a2a2e] rounded-lg p-6 shadow-md'}`}
+                                                    className={`relative transition-all duration-500 ease-in-out ${dragState?.sectionId === section.id && dragState?.isDragging ? '!duration-0' : ''} ${isUnstructured ? 'bg-[#1c1c1e] shadow-none p-0 mb-6' : 'bg-[#2a2a2e] rounded-lg p-6 shadow-md'} ${isBeingDragged ? 'shadow-2xl scale-105' : ''}`}
                                                 >
-                                                    <h3 
-                                                        contentEditable
-                                                        suppressContentEditableWarning
-                                                        onInput={(e) => updateSectionTitle(section.id, e.currentTarget.innerText)}
-                                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLHeadingElement).blur(); }}}
-                                                        onPaste={handleTitlePaste}
-                                                        className="text-gray-500 font-semibold tracking-wider text-sm mb-3 uppercase outline-none focus:ring-1 focus:ring-gray-500 rounded-md"
-                                                    >{section.title}</h3>
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <h3 
+                                                            contentEditable
+                                                            suppressContentEditableWarning
+                                                            onInput={(e) => updateSectionTitle(section.id, e.currentTarget.innerText)}
+                                                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLHeadingElement).blur(); }}}
+                                                            onPaste={handleTitlePaste}
+                                                            className="w-fit text-gray-500 font-semibold tracking-wider text-sm uppercase outline-none focus:ring-1 focus:ring-gray-500 rounded-md"
+                                                        >{section.title}</h3>
+                                                        {isUnstructured && (
+                                                            <button
+                                                                type="button"
+                                                                aria-label="Gemini Actions"
+                                                                onClick={(e) => handleGeminiIconClick(e, section.id)}
+                                                            >
+                                                                <GeminiIcon className="h-[15px] w-[15px] text-blue-400 flex-shrink-0" />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                    
                                                     <div className="flex items-start">
                                                         <div
@@ -265,11 +412,14 @@ const App: React.FC = () => {
                                                             className="lyric-editor flex-grow outline-none text-gray-200 text-lg leading-relaxed"
                                                         />
                                                         <div className={`font-mono text-gray-600 pl-4 w-12 text-right transition-opacity duration-300 ${showSyllableCount ? 'opacity-100' : 'opacity-0'}`}>
-                                                            {section.lyrics.map(lyric => (
-                                                                <div key={lyric.id} className="text-lg leading-relaxed h-[29px]">
-                                                                    {getSyllableCount(lyric.html)}
-                                                                </div>
-                                                            ))}
+                                                            {section.lyrics.map(lyric => {
+                                                                const count = getSyllableCount(lyric.html);
+                                                                return (
+                                                                    <div key={lyric.id} className="text-lg leading-relaxed">
+                                                                        {count !== null ? count : '\u00A0'}
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -282,6 +432,13 @@ const App: React.FC = () => {
                     </div>
                 </div>
             </main>
+            {geminiModalState?.anchorEl && (
+                <GeminiActionModal
+                    anchorEl={geminiModalState.anchorEl}
+                    onClose={() => setGeminiModalState(null)}
+                    onAction={handleGeminiAction}
+                />
+            )}
         </div>
     );
 };
