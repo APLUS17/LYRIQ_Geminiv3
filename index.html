@@ -37,6 +37,20 @@
             cursor: text;
             pointer-events: none;
         }
+        /* Animation for dropdowns */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-fade-in-fast {
+            animation: fadeInDown 0.15s ease-out forwards;
+        }
     </style>
 <script type="importmap">
 {

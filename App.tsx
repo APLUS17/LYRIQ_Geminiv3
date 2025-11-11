@@ -30,7 +30,7 @@ const App: React.FC = () => {
         translateX: number;
     } | null>(null);
     const [deletingSections, setDeletingSections] = useState<Set<string>>(new Set());
-    const deleteTimeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
+    const deleteTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     
     // Drag-and-drop reorder state
     const [reorderState, setReorderState] = useState<{
@@ -58,6 +58,7 @@ const App: React.FC = () => {
             ...prevSong,
             sections: prevSong.sections.filter(s => s.id !== sectionId)
         }));
+        deleteTimeouts.current.delete(sectionId);
     }, []);
 
     const handleGestureStart = useCallback((e: React.MouseEvent | React.TouchEvent, sectionId: string) => {
@@ -133,6 +134,11 @@ const App: React.FC = () => {
 
         if (!dragState || !dragState.isDragging) return;
 
+        // Prevent page scroll on touch devices when swiping
+        if ('touches' in e) {
+            e.preventDefault();
+        }
+        
         const currentX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const diff = currentX - dragState.startX;
 
@@ -179,7 +185,7 @@ const App: React.FC = () => {
             const timeoutId = setTimeout(() => {
                 deleteSection(sectionId);
             }, 500);
-            deleteTimeouts.current.push(timeoutId);
+            deleteTimeouts.current.set(sectionId, timeoutId);
         }
         
         setDragState(null);
@@ -313,7 +319,7 @@ const App: React.FC = () => {
                                 <PlusIcon />
                             </button>
                         </div>
-                        <SectionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddSection={addSection} existingSectionTitles={song.sections.map(s => s.title)} />
+                        <SectionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddSection={addSection} />
                     </div>
 
                     <div className="flex-grow overflow-y-auto">
@@ -401,13 +407,6 @@ const App: React.FC = () => {
                                                             data-placeholder="Start writing..."
                                                             data-section-id={section.id}
                                                             onFocus={() => setActiveSectionId(section.id)}
-                                                            onBlur={() => {
-                                                                setActiveSectionId(null)
-                                                                const editorNode = sectionEditorRefs.current[section.id];
-                                                                if (editorNode && editorNode.innerText.trim() === '') {
-                                                                    handleLyricsInput(section.id, editorNode);
-                                                                }
-                                                            }}
                                                             onInput={e => handleLyricsInput(section.id, e.currentTarget as HTMLDivElement)}
                                                             onPaste={handlePaste}
                                                             className="lyric-editor flex-grow outline-none text-gray-200 text-lg leading-relaxed"
