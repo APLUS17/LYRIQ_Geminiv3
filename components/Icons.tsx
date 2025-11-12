@@ -65,3 +65,9 @@ export const GeminiIcon: React.FC<{ className?: string }> = ({ className }) => (
         <path d="M11.12 6.52a.85.85 0 0 1 1.76 0l1.29 3.29 3.29 1.29a.85.85 0 0 1 0 1.76l-3.29 1.29-1.29 3.29a.85.85 0 0 1-1.76 0l-1.29-3.29-3.29-1.29a.85.85 0 0 1 0-1.76l3.29-1.29z"></path>
     </svg>
 );
+
+export const MicrophoneIcon: React.FC = () => (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 016 0v8.25a3 3 0 01-3 3z" />
+    </svg>
+);

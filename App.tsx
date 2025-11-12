@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Song, Section, Lyric } from './types';
 import { getSyllableCount } from './services/syllableService';
-import { UnderlineIcon, SyllableCountIcon, PlusIcon, TrashIcon, GeminiIcon } from './components/Icons';
+import { UnderlineIcon, SyllableCountIcon, PlusIcon, TrashIcon, GeminiIcon, MicrophoneIcon } from './components/Icons';
 import SectionModal from './components/SectionModal';
 import GeminiActionModal from './components/GeminiActionModal';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -481,25 +481,32 @@ const App: React.FC = () => {
                                                     style={{ transform: `translateX(${currentTranslateX}px)` }}
                                                     className={`relative transition-all duration-500 ease-in-out ${dragState?.sectionId === section.id && dragState?.isDragging ? '!duration-0' : ''} ${isUnstructured ? 'bg-[#1c1c1e] shadow-none p-0 mb-6' : 'bg-[#2a2a2e] rounded-lg p-6 shadow-md'} ${isBeingDragged ? 'shadow-2xl scale-105' : ''}`}
                                                 >
-                                                    <div className="flex items-center gap-2 mb-3">
-                                                        <h3 
-                                                            contentEditable
-                                                            suppressContentEditableWarning
-                                                            onInput={(e) => updateSectionTitle(section.id, e.currentTarget.innerText)}
-                                                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLHeadingElement).blur(); }}}
-                                                            onPaste={handleTitlePaste}
-                                                            className="w-fit text-gray-500 font-semibold tracking-wider text-sm uppercase outline-none focus:ring-1 focus:ring-gray-500 rounded-md"
-                                                        >{section.title}</h3>
-                                                        <button
-                                                            ref={el => { geminiIconRefs.current[section.id] = el; }}
-                                                            type="button"
-                                                            aria-label="Gemini Actions"
-                                                            onClick={(e) => handleGeminiIconClick(e, section.id)}
-                                                            className={`transition-all duration-300 ease-in-out ${isUnstructured && activeSectionId === section.id ? 'w-[15px] opacity-100' : 'w-0 opacity-0'}`}
-                                                            tabIndex={isUnstructured && activeSectionId === section.id ? 0 : -1}
-                                                        >
-                                                            <GeminiIcon className="h-[15px] w-[15px] text-blue-400 flex-shrink-0" />
-                                                        </button>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <h3 
+                                                                contentEditable
+                                                                suppressContentEditableWarning
+                                                                onInput={(e) => updateSectionTitle(section.id, e.currentTarget.innerText)}
+                                                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLHeadingElement).blur(); }}}
+                                                                onPaste={handleTitlePaste}
+                                                                className="w-fit text-gray-500 font-semibold tracking-wider text-sm uppercase outline-none focus:ring-1 focus:ring-gray-500 rounded-md"
+                                                            >{section.title}</h3>
+                                                            <button
+                                                                ref={el => { geminiIconRefs.current[section.id] = el; }}
+                                                                type="button"
+                                                                aria-label="Gemini Actions"
+                                                                onClick={(e) => handleGeminiIconClick(e, section.id)}
+                                                                className={`transition-all duration-300 ease-in-out ${isUnstructured && activeSectionId === section.id ? 'w-[15px] opacity-100' : 'w-0 opacity-0'}`}
+                                                                tabIndex={isUnstructured && activeSectionId === section.id ? 0 : -1}
+                                                            >
+                                                                <GeminiIcon className="h-[15px] w-[15px] text-blue-400 flex-shrink-0" />
+                                                            </button>
+                                                        </div>
+                                                        {!isUnstructured && (
+                                                            <button type="button" aria-label="Record audio" className="p-1 -mr-1 text-gray-500 hover:text-gray-300 transition-colors">
+                                                                <MicrophoneIcon />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                    
                                                     <div className="flex items-start">
