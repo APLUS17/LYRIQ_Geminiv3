@@ -49,7 +49,7 @@ export const PlusIcon: React.FC = () => (
 );
 
 export const TrashIcon: React.FC = () => (
-    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
     </svg>
 );
@@ -69,5 +69,41 @@ export const GeminiIcon: React.FC<{ className?: string }> = ({ className }) => (
 export const MicrophoneIcon: React.FC = () => (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 016 0v8.25a3 3 0 01-3 3z" />
+    </svg>
+);
+
+export const MusicNoteIcon: React.FC = () => (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V7.5A2.25 2.25 0 0019.5 5.25v1.838m-9 0a2.25 2.25 0 00-2.25 2.25v3.75a2.25 2.25 0 002.25 2.25h.75A2.25 2.25 0 0012 15.75v-3.75a2.25 2.25 0 00-2.25-2.25H9z" />
+    </svg>
+);
+
+export const PlayIcon: React.FC<{className?: string}> = ({ className = "h-6 w-6" }) => (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+        <path d="M8 5v14l11-7z" />
+    </svg>
+);
+
+export const PauseIcon: React.FC<{className?: string}> = ({ className = "h-6 w-6" }) => (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+    </svg>
+);
+
+export const CloseIcon: React.FC = () => (
+    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+);
+
+export const NextIcon: React.FC = () => (
+    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M6 18h2V6H6v12zm3.5-6L18 6v12l-8.5-6z" />
+    </svg>
+);
+
+export const PreviousIcon: React.FC = () => (
+    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M16 6h2v12h-2V6zm-3.5 6L6 6v12l6.5-6z" />
     </svg>
 );

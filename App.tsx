@@ -1,19 +1,42 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Song, Section, Lyric } from './types';
+import { Song, Section, Lyric, AudioTake } from './types';
 import { getSyllableCount } from './services/syllableService';
-import { UnderlineIcon, SyllableCountIcon, PlusIcon, TrashIcon, GeminiIcon, MicrophoneIcon } from './components/Icons';
+import { UnderlineIcon, SyllableCountIcon, PlusIcon, TrashIcon, GeminiIcon, MicrophoneIcon, MusicNoteIcon } from './components/Icons';
 import SectionModal from './components/SectionModal';
 import GeminiActionModal from './components/GeminiActionModal';
 import { GoogleGenAI, Type } from "@google/genai";
 import RhymePopup from './components/RhymePopup';
-
+import AudioRecorder from './components/AudioRecorder';
+import BottomTakesPlayer from './components/BottomTakesPlayer';
 
 const initialSectionId = crypto.randomUUID();
 const initialSong: Song = {
   sections: [
-    { id: initialSectionId, title: 'Intro', lyrics: [] }
+    { id: initialSectionId, title: 'Intro', lyrics: [], takes: [] }
   ],
+};
+
+const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1]); // remove the data URI prefix
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
+const getAudioDuration = (blob: Blob): Promise<number> => {
+    const url = URL.createObjectURL(blob);
+    return new Promise(resolve => {
+        const audio = document.createElement('audio');
+        audio.muted = true;
+        audio.src = url;
+        audio.addEventListener('loadedmetadata', () => {
+            resolve(audio.duration);
+            URL.revokeObjectURL(url);
+        });
+    });
 };
 
 const App: React.FC = () => {
@@ -57,6 +80,12 @@ const App: React.FC = () => {
     const longPressTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const sectionContainerRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
+    // Audio Recording State
+    const [recordingState, setRecordingState] = useState<{ status: 'idle' | 'recording'; targetSectionId: string | null; startTime: number | null }>({ status: 'idle', targetSectionId: null, startTime: null });
+    const [activePlayerSectionId, setActivePlayerSectionId] = useState<string | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+
     useEffect(() => {
       document.execCommand('defaultParagraphSeparator', false, 'div');
       
@@ -85,7 +114,7 @@ const App: React.FC = () => {
         clearRhymePopupAndTimeout();
 
         const target = e.target as HTMLElement;
-        if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
+        if (target.isContentEditable || target.closest('[contenteditable="true"]') || target.closest('button')) {
             return;
         }
 
@@ -154,7 +183,6 @@ const App: React.FC = () => {
 
         if (!dragState || !dragState.isDragging) return;
 
-        // Prevent page scroll on touch devices when swiping
         if ('touches' in e) {
             e.preventDefault();
         }
@@ -276,7 +304,7 @@ const App: React.FC = () => {
     };
 
     const addSection = (title: string) => {
-        const newSection: Section = { id: crypto.randomUUID(), title: title, lyrics: [] };
+        const newSection: Section = { id: crypto.randomUUID(), title: title, lyrics: [], takes: [] };
         setSong(prevSong => ({...prevSong, sections: [...prevSong.sections, newSection]}));
         setActiveSectionId(newSection.id);
         setIsModalOpen(false);
@@ -319,7 +347,6 @@ const App: React.FC = () => {
     const handleGeminiAction = (action: 'suggest' | 'rhyme' | 'rewrite') => {
         if (geminiModalSectionId) {
             console.log(`Action: ${action} on section: ${geminiModalSectionId}`);
-            // Gemini API calls can be triggered from here
         }
     };
 
@@ -402,7 +429,91 @@ const App: React.FC = () => {
         }, 750);
     };
 
+    // Recording Logic
+    const handleStopRecording = async (save: boolean) => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+            mediaRecorderRef.current.onstop = async () => {
+                if (save && recordingState.targetSectionId) {
+                    const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorderRef.current?.mimeType });
+                    
+                    if (audioBlob.size > 0) {
+                        const base64Data = await blobToBase64(audioBlob);
+                        const duration = await getAudioDuration(audioBlob);
+
+                        const newTake: AudioTake = {
+                            id: `take_${Date.now()}`,
+                            url: URL.createObjectURL(audioBlob),
+                            data: base64Data,
+                            mimeType: audioBlob.type,
+                            duration: duration,
+                            timestamp: Date.now()
+                        };
+
+                        setSong(prevSong => ({
+                            ...prevSong,
+                            sections: prevSong.sections.map(s =>
+                                s.id === recordingState.targetSectionId
+                                    ? { ...s, takes: [...s.takes, newTake] }
+                                    : s
+                            )
+                        }));
+                    }
+                }
+                audioChunksRef.current = [];
+                mediaRecorderRef.current = null;
+                setRecordingState({ status: 'idle', targetSectionId: null, startTime: null });
+            };
+            mediaRecorderRef.current.stop();
+        }
+    };
+
+    const handleRecordClick = async (sectionId: string) => {
+        if (recordingState.status === 'recording') return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorderRef.current = new MediaRecorder(stream);
+            audioChunksRef.current = [];
+
+            mediaRecorderRef.current.ondataavailable = (event) => {
+                if (event.data.size > 0) audioChunksRef.current.push(event.data);
+            };
+
+            mediaRecorderRef.current.start();
+            setRecordingState({ status: 'recording', targetSectionId: sectionId, startTime: Date.now() });
+
+            mediaRecorderRef.current.onstop = () => {
+                 stream.getTracks().forEach(track => track.stop());
+            }
+
+        } catch (err) {
+            console.error("Error accessing microphone:", err);
+        }
+    };
+
+    const handleDeleteTake = (takeId: string, sectionId: string) => {
+        const section = song.sections.find(s => s.id === sectionId);
+        const takeToDelete = section?.takes.find(t => t.id === takeId);
+
+        if (takeToDelete) {
+            URL.revokeObjectURL(takeToDelete.url);
+        }
+        
+        const updatedSections = song.sections.map(s => {
+            if (s.id === sectionId) {
+                const updatedTakes = s.takes.filter(t => t.id !== takeId);
+                if (updatedTakes.length === 0) {
+                    setActivePlayerSectionId(null);
+                }
+                return { ...s, takes: updatedTakes };
+            }
+            return s;
+        });
+
+        setSong(prevSong => ({ ...prevSong, sections: updatedSections }));
+    };
+
     const anchorEl = geminiModalSectionId ? geminiIconRefs.current[geminiModalSectionId] : null;
+    const activePlayerSection = song.sections.find(s => s.id === activePlayerSectionId);
 
     return (
         <div className="h-screen flex flex-col">
@@ -444,18 +555,15 @@ const App: React.FC = () => {
                                             zIndex: 50,
                                             cursor: 'grabbing',
                                         };
-                                        containerClasses = ''; // no transition while dragging
+                                        containerClasses = '';
                                     } else {
-                                        let isShifted = false;
                                         let shiftAmount = 0;
                                         if (startIndex < finalDropIndex && index > startIndex && index <= finalDropIndex) {
-                                            isShifted = true;
-                                            shiftAmount = -draggedElHeight - (isUnstructured ? 24 : 32); // mb-6 or mb-8
+                                            shiftAmount = -draggedElHeight - (isUnstructured ? 24 : 32);
                                         } else if (startIndex > finalDropIndex && index < startIndex && index >= finalDropIndex) {
-                                            isShifted = true;
                                             shiftAmount = draggedElHeight + (isUnstructured ? 24 : 32);
                                         }
-                                        if (isShifted) {
+                                        if (shiftAmount !== 0) {
                                             containerStyle = { transform: `translateY(${shiftAmount}px)` };
                                         }
                                     }
@@ -503,9 +611,27 @@ const App: React.FC = () => {
                                                             </button>
                                                         </div>
                                                         {!isUnstructured && (
-                                                            <button type="button" aria-label="Record audio" className="p-1 -mr-1 text-gray-500 hover:text-gray-300 transition-colors">
-                                                                <MicrophoneIcon />
-                                                            </button>
+                                                            <div className="flex items-center space-x-2">
+                                                                {section.takes.length > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setActivePlayerSectionId(section.id)}
+                                                                        className="bg-gray-600/50 rounded-full flex items-center space-x-1.5 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-600 transition-colors"
+                                                                        aria-label={`Show ${section.takes.length} audio takes`}
+                                                                    >
+                                                                        <MusicNoteIcon />
+                                                                        <span>{section.takes.length}</span>
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    type="button"
+                                                                    aria-label="Record audio"
+                                                                    onClick={() => handleRecordClick(section.id)}
+                                                                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                                                                >
+                                                                    <MicrophoneIcon />
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </div>
                                                    
@@ -554,6 +680,20 @@ const App: React.FC = () => {
                 />
             )}
             {rhymePopup && <RhymePopup {...rhymePopup} />}
+            {recordingState.status === 'recording' && recordingState.startTime && (
+                <AudioRecorder
+                    startTime={recordingState.startTime}
+                    onSave={() => handleStopRecording(true)}
+                    onCancel={() => handleStopRecording(false)}
+                />
+            )}
+            {activePlayerSection && (
+                <BottomTakesPlayer
+                    section={activePlayerSection}
+                    onClose={() => setActivePlayerSectionId(null)}
+                    onDeleteTake={handleDeleteTake}
+                />
+            )}
         </div>
     );
 };
