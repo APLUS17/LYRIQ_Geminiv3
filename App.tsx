@@ -5,10 +5,14 @@ import { getSyllableCount } from './services/syllableService';
 import { UnderlineIcon, SyllableCountIcon, PlusIcon, TrashIcon, GeminiIcon } from './components/Icons';
 import SectionModal from './components/SectionModal';
 import GeminiActionModal from './components/GeminiActionModal';
+import { GoogleGenAI, Type } from "@google/genai";
+import RhymePopup from './components/RhymePopup';
 
+
+const initialSectionId = crypto.randomUUID();
 const initialSong: Song = {
   sections: [
-    { id: crypto.randomUUID(), title: 'Intro', lyrics: [] }
+    { id: initialSectionId, title: 'Intro', lyrics: [] }
   ],
 };
 
@@ -18,9 +22,18 @@ const App: React.FC = () => {
     const [isUnstructured, setIsUnstructured] = useState(true);
     const [showSyllableCount, setShowSyllableCount] = useState(false);
     const sectionEditorRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-    const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+    const [activeSectionId, setActiveSectionId] = useState<string | null>(initialSectionId);
     const [geminiModalSectionId, setGeminiModalSectionId] = useState<string | null>(null);
     const geminiIconRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+
+    // Rhyme popup state
+    const [rhymePopup, setRhymePopup] = useState<{
+        word: string;
+        position: { top: number; left: number };
+        rhymes: string[];
+        isLoading: boolean;
+    } | null>(null);
+    const rhymeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Swipe-to-delete state
     const [dragState, setDragState] = useState<{
@@ -52,6 +65,12 @@ const App: React.FC = () => {
           timeouts.forEach(clearTimeout);
       };
     }, []);
+
+    const clearRhymePopupAndTimeout = useCallback(() => {
+        if (rhymeTimeoutRef.current) clearTimeout(rhymeTimeoutRef.current);
+        rhymeTimeoutRef.current = null;
+        setRhymePopup(null);
+    }, []);
     
     const deleteSection = useCallback((sectionId: string) => {
         setSong(prevSong => ({
@@ -63,6 +82,7 @@ const App: React.FC = () => {
 
     const handleGestureStart = useCallback((e: React.MouseEvent | React.TouchEvent, sectionId: string) => {
         if (isUnstructured || reorderState) return;
+        clearRhymePopupAndTimeout();
 
         const target = e.target as HTMLElement;
         if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
@@ -102,7 +122,7 @@ const App: React.FC = () => {
             isDragging: true,
             translateX: 0,
         });
-    }, [isUnstructured, song.sections, reorderState]);
+    }, [isUnstructured, song.sections, reorderState, clearRhymePopupAndTimeout]);
 
     const handleGestureMove = useCallback((e: MouseEvent | TouchEvent) => {
         if (reorderState) {
@@ -238,6 +258,7 @@ const App: React.FC = () => {
 
 
     const handleLyricsInput = (sectionId: string, editorNode: HTMLDivElement) => {
+        clearRhymePopupAndTimeout();
         const newLyrics = parseLyricsFromDom(editorNode);
         setSong(prevSong => ({
             ...prevSong,
@@ -257,6 +278,7 @@ const App: React.FC = () => {
     const addSection = (title: string) => {
         const newSection: Section = { id: crypto.randomUUID(), title: title, lyrics: [] };
         setSong(prevSong => ({...prevSong, sections: [...prevSong.sections, newSection]}));
+        setActiveSectionId(newSection.id);
         setIsModalOpen(false);
     }
     
@@ -277,6 +299,7 @@ const App: React.FC = () => {
     }, [song, activeSectionId]);
 
     const handlePaste = (e: React.ClipboardEvent) => {
+        clearRhymePopupAndTimeout();
         e.preventDefault();
         const text = e.clipboardData.getData('text/plain');
         document.execCommand('insertText', false, text);
@@ -298,6 +321,85 @@ const App: React.FC = () => {
             console.log(`Action: ${action} on section: ${geminiModalSectionId}`);
             // Gemini API calls can be triggered from here
         }
+    };
+
+    const fetchRhymes = async (word: string, context: string) => {
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const prompt = `Given the lyric line "${context}", provide a list of up to 10 contextual rhyming words for "${word}". The rhymes should fit the mood and meaning of the line. Only return single words.`;
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            rhymes: {
+                                type: Type.ARRAY,
+                                items: { type: Type.STRING }
+                            }
+                        },
+                        required: ['rhymes']
+                    }
+                }
+            });
+            
+            const jsonText = response.text.trim();
+            const result = JSON.parse(jsonText);
+            const filteredRhymes = (result.rhymes || []).filter((r: unknown) => typeof r === 'string' && !r.includes(' '));
+
+
+            if (filteredRhymes.length > 0) {
+                setRhymePopup(prev => prev ? { ...prev, rhymes: filteredRhymes, isLoading: false } : null);
+            } else {
+                setRhymePopup(prev => prev ? { ...prev, isLoading: false, rhymes: ['No rhymes found.'] } : null);
+            }
+        } catch (error) {
+            console.error("Error fetching rhymes:", error);
+            setRhymePopup(prev => prev ? { ...prev, isLoading: false, rhymes: ['Error.'] } : null);
+        }
+    };
+
+    const handleSelection = () => {
+        if (rhymeTimeoutRef.current) clearTimeout(rhymeTimeoutRef.current);
+        
+        rhymeTimeoutRef.current = setTimeout(() => {
+            const selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+                setRhymePopup(null); return;
+            }
+
+            const range = selection.getRangeAt(0);
+            const editorNode = (range.startContainer.parentElement as HTMLElement)?.closest('.lyric-editor');
+            if (!editorNode) {
+                setRhymePopup(null); return;
+            }
+
+            const selectedText = selection.toString().trim();
+
+            if (selectedText && !selectedText.includes(' ') && selectedText.length > 1) {
+                if (rhymePopup && rhymePopup.word === selectedText) return;
+
+                const rect = range.getBoundingClientRect();
+                const lineElement = (range.startContainer.nodeType === Node.TEXT_NODE
+                    ? range.startContainer.parentElement
+                    : range.startContainer as HTMLElement
+                )?.closest('div');
+                const context = lineElement ? lineElement.textContent || '' : '';
+
+                setRhymePopup({
+                    word: selectedText,
+                    position: { top: rect.bottom + window.scrollY, left: rect.left + window.scrollX },
+                    rhymes: [],
+                    isLoading: true,
+                });
+                fetchRhymes(selectedText, context);
+            } else {
+                setRhymePopup(null);
+            }
+        }, 750);
     };
 
     const anchorEl = geminiModalSectionId ? geminiIconRefs.current[geminiModalSectionId] : null;
@@ -322,7 +424,7 @@ const App: React.FC = () => {
                         <SectionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddSection={addSection} />
                     </div>
 
-                    <div className="flex-grow overflow-y-auto">
+                    <div className="flex-grow overflow-y-auto" onScroll={clearRhymePopupAndTimeout}>
                         <div className="pt-6 px-6 pb-24">
                             {song.sections.map((section, index) => {
                                 const isDeleting = deletingSections.has(section.id);
@@ -393,8 +495,8 @@ const App: React.FC = () => {
                                                             type="button"
                                                             aria-label="Gemini Actions"
                                                             onClick={(e) => handleGeminiIconClick(e, section.id)}
-                                                            className={`transition-all duration-300 ease-in-out ${isUnstructured ? 'w-[15px] opacity-100' : 'w-0 opacity-0'}`}
-                                                            tabIndex={isUnstructured ? 0 : -1}
+                                                            className={`transition-all duration-300 ease-in-out ${isUnstructured && activeSectionId === section.id ? 'w-[15px] opacity-100' : 'w-0 opacity-0'}`}
+                                                            tabIndex={isUnstructured && activeSectionId === section.id ? 0 : -1}
                                                         >
                                                             <GeminiIcon className="h-[15px] w-[15px] text-blue-400 flex-shrink-0" />
                                                         </button>
@@ -406,7 +508,12 @@ const App: React.FC = () => {
                                                             contentEditable
                                                             data-placeholder="Start writing..."
                                                             data-section-id={section.id}
-                                                            onFocus={() => setActiveSectionId(section.id)}
+                                                            onFocus={() => { clearRhymePopupAndTimeout(); setActiveSectionId(section.id); }}
+                                                            onBlur={clearRhymePopupAndTimeout}
+                                                            onMouseDown={clearRhymePopupAndTimeout}
+                                                            onTouchStart={clearRhymePopupAndTimeout}
+                                                            onMouseUp={handleSelection}
+                                                            onTouchEnd={handleSelection}
                                                             onInput={e => handleLyricsInput(section.id, e.currentTarget as HTMLDivElement)}
                                                             onPaste={handlePaste}
                                                             className="lyric-editor flex-grow outline-none text-gray-200 text-lg leading-relaxed"
@@ -439,6 +546,7 @@ const App: React.FC = () => {
                     onAction={handleGeminiAction}
                 />
             )}
+            {rhymePopup && <RhymePopup {...rhymePopup} />}
         </div>
     );
 };

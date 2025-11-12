@@ -65,7 +65,6 @@ const GeminiActionModal: React.FC<GeminiActionModalProps> = ({ anchorEl, onClose
           </button>
         </li>
         <li>
-          {/* FIX: Corrected a typo in the button's type attribute from `type-button"` to `type="button"`. */}
           <button type="button" onClick={() => handleActionClick('rewrite')} className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#3a3a3e] transition-colors">
             Rewrite
           </button>
