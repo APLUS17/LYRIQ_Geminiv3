@@ -51,7 +51,7 @@ const GeminiActionModal: React.FC<GeminiActionModalProps> = ({ anchorEl, onClose
     <div
       ref={modalRef}
       style={{ top: position.top, left: position.left }}
-      className="fixed bg-[#2a2a2e] text-gray-200 rounded-lg shadow-2xl z-50 p-2 text-sm font-medium animate-fade-in-fast w-48"
+      className="fixed bg-[#2a2a2e] text-gray-200 rounded-lg z-50 p-2 text-sm font-medium animate-fade-in-fast w-48"
     >
       <ul>
         <li>
