@@ -85,6 +85,7 @@ const App: React.FC = () => {
     const [activePlayerSectionId, setActivePlayerSectionId] = useState<string | null>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
+    const streamRef = useRef<MediaStream | null>(null);
 
     useEffect(() => {
       document.execCommand('defaultParagraphSeparator', false, 'div');
@@ -461,6 +462,10 @@ const App: React.FC = () => {
                 }
                 audioChunksRef.current = [];
                 mediaRecorderRef.current = null;
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                    streamRef.current = null;
+                }
                 setRecordingState({ status: 'idle', targetSectionId: null, startTime: null });
             };
             mediaRecorderRef.current.stop();
@@ -471,6 +476,7 @@ const App: React.FC = () => {
         if (recordingState.status === 'recording') return;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
             mediaRecorderRef.current = new MediaRecorder(stream);
             audioChunksRef.current = [];
 
@@ -480,10 +486,6 @@ const App: React.FC = () => {
 
             mediaRecorderRef.current.start();
             setRecordingState({ status: 'recording', targetSectionId: sectionId, startTime: Date.now() });
-
-            mediaRecorderRef.current.onstop = () => {
-                 stream.getTracks().forEach(track => track.stop());
-            }
 
         } catch (err) {
             console.error("Error accessing microphone:", err);

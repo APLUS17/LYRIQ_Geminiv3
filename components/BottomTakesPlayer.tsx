@@ -86,7 +86,7 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
             audio.removeEventListener('ended', handleEnded);
             audio.pause();
         };
-    }, [currentTake]);
+    }, [currentTake, section.takes.length]);
     
     useEffect(() => {
         if (section.takes.length > 0) {
