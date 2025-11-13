@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 const iconProps = {
@@ -96,14 +95,14 @@ export const CloseIcon: React.FC = () => (
     </svg>
 );
 
-export const NextIcon: React.FC = () => (
+export const PreviousIcon: React.FC = () => (
     <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M6 18h2V6H6v12zm3.5-6L18 6v12l-8.5-6z" />
+        <path d="M6 18V6h2v12H6zm3.5-6L18 6v12l-8.5-6z" />
     </svg>
 );
 
-export const PreviousIcon: React.FC = () => (
+export const NextIcon: React.FC = () => (
     <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M16 6h2v12h-2V6zm-3.5 6L6 6v12l6.5-6z" />
+        <path d="M8 6v12l8.5-6L8 6zm10 12V6h2v12h-2z" />
     </svg>
 );

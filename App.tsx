@@ -539,6 +539,7 @@ const App: React.FC = () => {
 
     const handleRecordClick = async (sectionId: string) => {
         if (recordingState.status === 'recording') return;
+        setActivePlayerSectionId(null);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
