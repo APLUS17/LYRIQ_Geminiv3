@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Section } from '../types';
-import { generateWaveform } from '../services/waveformService';
+import { drawStaticWaveform } from '../services/canvasWaveformService';
 import { PlayIcon, PauseIcon, TrashIcon, NextIcon, PreviousIcon } from './Icons';
 
 interface BottomTakesPlayerProps {
@@ -17,6 +17,27 @@ const formatDuration = (seconds: number) => {
     return `${mins}:${secs}`;
 };
 
+// This is a browser-only service
+const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+// A function to decode base64 audio data into an AudioBuffer
+async function decodeAudioData(base64: string): Promise<AudioBuffer> {
+    try {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        const arrayBuffer = bytes.buffer;
+        return await audioContext.decodeAudioData(arrayBuffer);
+    } catch (error) {
+        console.error("Failed to decode audio data:", error);
+        throw error;
+    }
+}
+
+
 const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose, onDeleteTake }) => {
     const [playerState, setPlayerState] = useState<'peeking' | 'expanded'>('peeking');
     const [isVisible, setIsVisible] = useState(false);
@@ -24,11 +45,12 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
     const [currentTakeIndex, setCurrentTakeIndex] = useState(section.takes.length > 0 ? section.takes.length - 1 : 0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [waveform, setWaveform] = useState<number[]>([]);
+    const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
     const [isLoadingWaveform, setIsLoadingWaveform] = useState(true);
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const waveformContainerRef = useRef<HTMLDivElement | null>(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const isScrubbingRef = useRef(false);
 
     const currentTake = section.takes[currentTakeIndex];
@@ -43,6 +65,7 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
         setTimeout(onClose, 300); 
     };
     
+    // Effect for loading and decoding audio data
     useEffect(() => {
         if (!currentTake) {
             if (section.takes.length === 0) handleClose();
@@ -50,10 +73,18 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
         }
 
         setIsLoadingWaveform(true);
-        generateWaveform(currentTake.data, 80).then(data => {
-            setWaveform(data);
-            setIsLoadingWaveform(false);
-        });
+        setAudioBuffer(null);
+
+        decodeAudioData(currentTake.data)
+            .then(decodedBuffer => {
+                setAudioBuffer(decodedBuffer);
+            })
+            .catch(err => {
+                console.error("Could not generate waveform:", err);
+            })
+            .finally(() => {
+                setIsLoadingWaveform(false);
+            });
         
         const audio = new Audio(currentTake.url);
         audioPlayerRef.current = audio;
@@ -66,11 +97,11 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
         };
 
         const handleEnded = () => {
-            setIsPlaying(false);
             if (currentTakeIndex < section.takes.length - 1) {
                 setCurrentTakeIndex(prev => prev + 1);
             } else {
-                 setProgress(0);
+                setIsPlaying(false);
+                setProgress(0);
             }
         };
 
@@ -87,6 +118,16 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
             audio.pause();
         };
     }, [currentTake, section.takes.length]);
+
+    // Effect for drawing the static waveform
+    useEffect(() => {
+        if (!isLoadingWaveform && audioBuffer && canvasRef.current) {
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) {
+                drawStaticWaveform(ctx, audioBuffer, progress);
+            }
+        }
+    }, [progress, audioBuffer, isLoadingWaveform]);
     
     useEffect(() => {
         if (section.takes.length > 0) {
@@ -98,6 +139,11 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
 
     const handlePlayPause = (e: React.MouseEvent) => {
         e.stopPropagation();
+        
+        if (audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+
         if (isPlaying) {
             audioPlayerRef.current?.pause();
         } else {
@@ -206,19 +252,7 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
                     {isLoadingWaveform ? (
                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">Generating waveform...</div>
                     ) : (
-                        <>
-                            <div className="w-full h-full flex items-center space-x-0.5">
-                                {waveform.map((val, i) => (
-                                    <div key={i} className="bg-gray-500 rounded-sm" style={{ width: '100%', height: `${Math.max(2, val * 100)}%` }} />
-                                ))}
-                            </div>
-                            <div className="absolute top-0 left-0 h-full flex items-center space-x-0.5 overflow-hidden" style={{ width: `${progress * 100}%`}}>
-                                {waveform.map((val, i) => (
-                                    <div key={i} className="bg-yellow-400 rounded-sm flex-shrink-0" style={{ width: `${waveformContainerRef.current ? waveformContainerRef.current.clientWidth / waveform.length : 0}px`, height: `${Math.max(2, val * 100)}%` }} />
-                                ))}
-                            </div>
-                            <div className="absolute top-0 h-full w-0.5 bg-yellow-400" style={{ left: `${progress * 100}%` }} />
-                        </>
+                       <canvas ref={canvasRef} className="w-full h-full" />
                     )}
                 </div>
                  <div className="flex justify-between items-center mt-2">

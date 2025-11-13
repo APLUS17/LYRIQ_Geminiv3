@@ -38,3 +38,76 @@ export function getSyllableCount(html: string): number | null {
         .filter(word => word.length > 0)
         .reduce((total, word) => total + countSyllables(word.replace(/[^a-z']/gi, '')), 0);
 }
+
+
+// New function to handle visually wrapped lines
+function getWordsWithPositions(element: HTMLElement): { word: string, top: number }[] {
+    const words: { word: string, top: number }[] = [];
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+        const text = node.textContent;
+        if (!text) continue;
+
+        const wordsInNode = text.match(/\S+/g);
+        if (!wordsInNode) continue;
+        
+        let searchIndex = 0;
+        for (const word of wordsInNode) {
+            const range = document.createRange();
+            const wordIndex = text.indexOf(word, searchIndex);
+            if (wordIndex === -1) continue;
+            
+            range.setStart(node, wordIndex);
+            range.setEnd(node, wordIndex + word.length);
+            const rect = range.getBoundingClientRect();
+
+            if (rect.width > 0 && rect.height > 0) {
+                words.push({ word, top: rect.top });
+            }
+            searchIndex = wordIndex + word.length;
+        }
+    }
+    return words;
+}
+
+export function getSyllableCountsForWrappedLines(element: HTMLElement): number[] | null {
+    if (!element || !element.textContent || element.textContent.trim() === '') {
+        return null;
+    }
+
+    const wordsWithPositions = getWordsWithPositions(element);
+    if (wordsWithPositions.length === 0) {
+        return null;
+    }
+
+    const linesByTop = new Map<number, string[]>();
+    const uniqueTops: number[] = [];
+
+    for (const { word, top } of wordsWithPositions) {
+        // Find a representative 'top' value for this line to group words
+        // that are vertically very close. This handles sub-pixel variations.
+        const lineTop = uniqueTops.find(t => Math.abs(t - top) < 5);
+
+        if (lineTop !== undefined) {
+            linesByTop.get(lineTop)!.push(word);
+        } else {
+            uniqueTops.push(top);
+            linesByTop.set(top, [word]);
+        }
+    }
+
+    // Sort the lines by their vertical position to ensure correct order
+    uniqueTops.sort((a, b) => a - b);
+    
+    const linesOfWords = uniqueTops.map(top => linesByTop.get(top)!);
+
+    return linesOfWords.map(lineWords => {
+        const lineText = lineWords.join(' ');
+        return lineText
+            .trim()
+            .split(/[\s-]+/)
+            .filter(word => word.length > 0)
+            .reduce((total, word) => total + countSyllables(word.replace(/[^a-z']/gi, '')), 0);
+    });
+}

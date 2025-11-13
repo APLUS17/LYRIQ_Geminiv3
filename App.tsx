@@ -1,7 +1,8 @@
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import { Song, Section, Lyric, AudioTake } from './types';
-import { getSyllableCount } from './services/syllableService';
+import { getSyllableCount, getSyllableCountsForWrappedLines } from './services/syllableService';
 import { UnderlineIcon, SyllableCountIcon, PlusIcon, TrashIcon, GeminiIcon, MicrophoneIcon, MusicNoteIcon } from './components/Icons';
 import SectionModal from './components/SectionModal';
 import GeminiActionModal from './components/GeminiActionModal';
@@ -48,6 +49,10 @@ const App: React.FC = () => {
     const [activeSectionId, setActiveSectionId] = useState<string | null>(initialSectionId);
     const [geminiModalSectionId, setGeminiModalSectionId] = useState<string | null>(null);
     const geminiIconRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+    
+    // Syllable count state for wrapped lines
+    const [lineCountsBySection, setLineCountsBySection] = useState<Record<string, (number[] | null)[]>>({});
+
 
     // Rhyme popup state
     const [rhymePopup, setRhymePopup] = useState<{
@@ -95,6 +100,72 @@ const App: React.FC = () => {
           timeouts.forEach(clearTimeout);
       };
     }, []);
+
+    useLayoutEffect(() => {
+        // First, ensure inactive editors are populated correctly before measurement
+        song.sections.forEach(section => {
+            if (section.id === activeSectionId) return;
+            const editorNode = sectionEditorRefs.current[section.id];
+            if (editorNode) {
+                const newHtml = generateHtmlForSection(section.lyrics);
+                if (editorNode.innerHTML !== newHtml) {
+                    editorNode.innerHTML = newHtml;
+                }
+            }
+        });
+        
+        const calculateVisualLineCounts = () => {
+            if (!showSyllableCount) {
+                setLineCountsBySection({});
+                return;
+            }
+
+            const newCountsBySection: Record<string, (number[] | null)[]> = {};
+
+            for (const section of song.sections) {
+                const editorDiv = sectionEditorRefs.current[section.id];
+                if (!editorDiv) continue;
+
+                const sectionCounts: (number[] | null)[] = [];
+
+                if (section.id === activeSectionId) {
+                    const lineDivs = editorDiv.children;
+                    for (let i = 0; i < lineDivs.length; i++) {
+                        sectionCounts.push(getSyllableCountsForWrappedLines(lineDivs[i] as HTMLDivElement));
+                    }
+                } else {
+                    for (const lyric of section.lyrics) {
+                        const lyricDiv = editorDiv.querySelector(`[data-lyric-id="${lyric.id}"]`) as HTMLDivElement;
+                        sectionCounts.push(lyricDiv ? getSyllableCountsForWrappedLines(lyricDiv) : null);
+                    }
+                }
+                newCountsBySection[section.id] = sectionCounts;
+            }
+
+            setLineCountsBySection(prevCounts => {
+                if (JSON.stringify(prevCounts) === JSON.stringify(newCountsBySection)) return prevCounts;
+                return newCountsBySection;
+            });
+        };
+        
+        // Run calculation immediately on content change for real-time feedback
+        calculateVisualLineCounts();
+
+        const debounce = (fn: Function, ms = 150) => {
+            let timeoutId: ReturnType<typeof setTimeout>;
+            return function (this: any, ...args: any[]) {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => fn.apply(this, args), ms);
+            };
+        };
+        
+        const debouncedResizeHandler = debounce(calculateVisualLineCounts);
+        window.addEventListener('resize', debouncedResizeHandler);
+        
+        return () => window.removeEventListener('resize', debouncedResizeHandler);
+
+    }, [song, showSyllableCount, activeSectionId]);
+
 
     const clearRhymePopupAndTimeout = useCallback(() => {
         if (rhymeTimeoutRef.current) clearTimeout(rhymeTimeoutRef.current);
@@ -315,17 +386,6 @@ const App: React.FC = () => {
       if (lyrics.length === 0) return '';
       return lyrics.map(l => `<div data-lyric-id="${l.id}">${l.html || '<br>'}</div>`).join('');
     };
-    
-    useEffect(() => {
-        song.sections.forEach(section => {
-            if (section.id === activeSectionId) return;
-            const editorNode = sectionEditorRefs.current[section.id];
-            if (editorNode) {
-                const newHtml = generateHtmlForSection(section.lyrics);
-                if (editorNode.innerHTML !== newHtml) editorNode.innerHTML = newHtml;
-            }
-        });
-    }, [song, activeSectionId]);
 
     const handlePaste = (e: React.ClipboardEvent) => {
         clearRhymePopupAndTimeout();
@@ -434,39 +494,44 @@ const App: React.FC = () => {
     const handleStopRecording = async (save: boolean) => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
             mediaRecorderRef.current.onstop = async () => {
-                if (save && recordingState.targetSectionId) {
-                    const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorderRef.current?.mimeType });
-                    
-                    if (audioBlob.size > 0) {
-                        const base64Data = await blobToBase64(audioBlob);
-                        const duration = await getAudioDuration(audioBlob);
+                try {
+                    if (save && recordingState.targetSectionId) {
+                        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorderRef.current?.mimeType });
+                        
+                        if (audioBlob.size > 0) {
+                            const base64Data = await blobToBase64(audioBlob);
+                            const duration = await getAudioDuration(audioBlob);
 
-                        const newTake: AudioTake = {
-                            id: `take_${Date.now()}`,
-                            url: URL.createObjectURL(audioBlob),
-                            data: base64Data,
-                            mimeType: audioBlob.type,
-                            duration: duration,
-                            timestamp: Date.now()
-                        };
+                            const newTake: AudioTake = {
+                                id: `take_${Date.now()}`,
+                                url: URL.createObjectURL(audioBlob),
+                                data: base64Data,
+                                mimeType: audioBlob.type,
+                                duration: duration,
+                                timestamp: Date.now()
+                            };
 
-                        setSong(prevSong => ({
-                            ...prevSong,
-                            sections: prevSong.sections.map(s =>
-                                s.id === recordingState.targetSectionId
-                                    ? { ...s, takes: [...s.takes, newTake] }
-                                    : s
-                            )
-                        }));
+                            setSong(prevSong => ({
+                                ...prevSong,
+                                sections: prevSong.sections.map(s =>
+                                    s.id === recordingState.targetSectionId
+                                        ? { ...s, takes: [...s.takes, newTake] }
+                                        : s
+                                )
+                            }));
+                        }
                     }
+                } catch (error) {
+                    console.error("Error processing audio take:", error);
+                } finally {
+                    audioChunksRef.current = [];
+                    mediaRecorderRef.current = null;
+                    if (streamRef.current) {
+                        streamRef.current.getTracks().forEach(track => track.stop());
+                        streamRef.current = null;
+                    }
+                    setRecordingState({ status: 'idle', targetSectionId: null, startTime: null });
                 }
-                audioChunksRef.current = [];
-                mediaRecorderRef.current = null;
-                if (streamRef.current) {
-                    streamRef.current.getTracks().forEach(track => track.stop());
-                    streamRef.current = null;
-                }
-                setRecordingState({ status: 'idle', targetSectionId: null, startTime: null });
             };
             mediaRecorderRef.current.stop();
         }
@@ -654,11 +719,27 @@ const App: React.FC = () => {
                                                             className="lyric-editor flex-grow outline-none text-gray-200 text-lg leading-relaxed"
                                                         />
                                                         <div className={`font-mono text-gray-600 pl-4 w-12 text-right transition-opacity duration-300 ${showSyllableCount ? 'opacity-100' : 'opacity-0'}`}>
-                                                            {section.lyrics.map(lyric => {
-                                                                const count = getSyllableCount(lyric.html);
+                                                            {section.lyrics.map((lyric, lineIndex) => {
+                                                                const counts = (lineCountsBySection[section.id] || [])[lineIndex];
+
+                                                                if (!lyric.html.trim()) {
+                                                                    return <div key={lyric.id} className="text-lg leading-relaxed">{'\u00A0'}</div>;
+                                                                }
+
+                                                                // If we have calculated wrapped line counts, display them
+                                                                if (counts && counts.length > 0) {
+                                                                    return counts.map((count, wrapIndex) => (
+                                                                        <div key={`${lyric.id}-${wrapIndex}`} className="text-lg leading-relaxed">
+                                                                            {count}
+                                                                        </div>
+                                                                    ));
+                                                                }
+                                                                
+                                                                // As a fallback for the active line (before layout effect runs), show the simple count.
+                                                                const fallbackCount = getSyllableCount(lyric.html);
                                                                 return (
                                                                     <div key={lyric.id} className="text-lg leading-relaxed">
-                                                                        {count !== null ? count : '\u00A0'}
+                                                                        {fallbackCount ?? '\u00A0'}
                                                                     </div>
                                                                 );
                                                             })}
