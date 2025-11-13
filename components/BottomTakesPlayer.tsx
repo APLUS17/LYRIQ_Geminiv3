@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Section } from '../types';
 import { drawStaticWaveform } from '../services/canvasWaveformService';
 import { PlayIcon, PauseIcon, TrashIcon, NextIcon, PreviousIcon } from './Icons';
@@ -47,6 +48,7 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
     const [progress, setProgress] = useState(0);
     const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
     const [isLoadingWaveform, setIsLoadingWaveform] = useState(true);
+    const [swipeState, setSwipeState] = useState<{ startY: number, currentY: number } | null>(null);
 
     const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
     const waveformContainerRef = useRef<HTMLDivElement | null>(null);
@@ -60,10 +62,10 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
         return () => clearTimeout(timer);
     }, []);
 
-    const handleClose = () => {
+    const handleClose = useCallback(() => {
         setIsVisible(false);
         setTimeout(onClose, 300); 
-    };
+    }, [onClose]);
     
     // Effect for loading and decoding audio data
     useEffect(() => {
@@ -117,7 +119,7 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
             audio.removeEventListener('ended', handleEnded);
             audio.pause();
         };
-    }, [currentTake, section.takes.length]);
+    }, [currentTake, section.takes.length, handleClose]);
 
     // Effect for drawing the static waveform
     useEffect(() => {
@@ -135,7 +137,7 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
         } else {
             handleClose();
         }
-    }, [section.takes.length]);
+    }, [section.takes.length, handleClose]);
 
     const handlePlayPause = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -207,15 +209,73 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
         };
     }, []);
 
+    // Swipe to dismiss logic
+    const handleSwipeStart = (e: React.MouseEvent | React.TouchEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('button') || (waveformContainerRef.current && waveformContainerRef.current.contains(target))) {
+            return; // Don't swipe if interacting with buttons or waveform
+        }
+        const startY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        setSwipeState({ startY, currentY: startY });
+    };
+
+    const handleSwipeMove = useCallback((e: MouseEvent | TouchEvent) => {
+        if (!swipeState) return;
+        const currentY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        if (currentY >= swipeState.startY) { // Only allow swiping down
+            setSwipeState(prev => prev ? { ...prev, currentY } : null);
+        }
+    }, [swipeState]);
+
+    const handleSwipeEnd = useCallback(() => {
+        if (!swipeState) return;
+        const deltaY = swipeState.currentY - swipeState.startY;
+        const SWIPE_DOWN_THRESHOLD = 80;
+
+        if (deltaY > SWIPE_DOWN_THRESHOLD) {
+            handleClose();
+        }
+        setSwipeState(null);
+    }, [swipeState, handleClose]);
+
+    useEffect(() => {
+        if (swipeState) {
+            window.addEventListener('mousemove', handleSwipeMove);
+            window.addEventListener('touchmove', handleSwipeMove);
+            window.addEventListener('mouseup', handleSwipeEnd);
+            window.addEventListener('touchend', handleSwipeEnd);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleSwipeMove);
+            window.removeEventListener('touchmove', handleSwipeMove);
+            window.removeEventListener('mouseup', handleSwipeEnd);
+            window.removeEventListener('touchend', handleSwipeEnd);
+        };
+    }, [swipeState, handleSwipeMove, handleSwipeEnd]);
+
+
     if (!currentTake) return null;
 
     const currentTime = audioPlayerRef.current ? progress * audioPlayerRef.current.duration : 0;
     const totalDuration = audioPlayerRef.current?.duration || currentTake.duration;
 
+    const swipeDeltaY = swipeState ? swipeState.currentY - swipeState.startY : 0;
+    const isSwipingDown = swipeDeltaY > 0;
+    const playerStyle: React.CSSProperties = {};
+    if (swipeState && isSwipingDown) {
+        playerStyle.transform = `translateY(${swipeDeltaY}px)`;
+        playerStyle.transition = 'none';
+    }
+
     const playerClassName = `peek-takes-player ${isVisible ? playerState : ''}`;
     
     return (
-        <div className={playerClassName}>
+        <div
+            className={playerClassName}
+            style={playerStyle}
+            onMouseDown={handleSwipeStart}
+            onTouchStart={handleSwipeStart}
+        >
             <div className="peek-modal-handle-container" onClick={() => setPlayerState(prev => prev === 'peeking' ? 'expanded' : 'peeking')}>
                 <div className="peek-modal-handle"></div>
             </div>
