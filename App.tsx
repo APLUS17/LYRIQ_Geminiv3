@@ -154,8 +154,15 @@ const App: React.FC = () => {
             });
         };
         
-        // Run calculation immediately on content change for real-time feedback
-        calculateVisualLineCounts();
+        // Use double requestAnimationFrame + small delay for mobile browsers
+        // Mobile needs more time than desktop to complete layout calculations
+        let rafId1: number, rafId2: number, timeoutId: number;
+        rafId1 = requestAnimationFrame(() => {
+            rafId2 = requestAnimationFrame(() => {
+                // Additional 10ms delay ensures mobile layout is complete
+                timeoutId = setTimeout(calculateVisualLineCounts, 10) as any;
+            });
+        });
 
         const debounce = (fn: Function, ms = 150) => {
             let timeoutId: ReturnType<typeof setTimeout>;
@@ -164,11 +171,24 @@ const App: React.FC = () => {
                 timeoutId = setTimeout(() => fn.apply(this, args), ms);
             };
         };
-        
+
         const debouncedResizeHandler = debounce(calculateVisualLineCounts);
         window.addEventListener('resize', debouncedResizeHandler);
-        
-        return () => window.removeEventListener('resize', debouncedResizeHandler);
+
+        // Also listen for visualViewport changes (mobile keyboard appearing/disappearing)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', debouncedResizeHandler);
+        }
+
+        return () => {
+            cancelAnimationFrame(rafId1);
+            cancelAnimationFrame(rafId2);
+            clearTimeout(timeoutId);
+            window.removeEventListener('resize', debouncedResizeHandler);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', debouncedResizeHandler);
+            }
+        };
 
     }, [song, showSyllableCount, activeSectionId]);
 

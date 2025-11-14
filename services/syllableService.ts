@@ -1,4 +1,3 @@
-
 // A helper function to strip HTML tags from a string
 function stripHtml(html: string): string {
     const tmp = document.createElement("DIV");
@@ -88,13 +87,20 @@ export function getSyllableCountsForWrappedLines(element: HTMLElement): number[]
         return null;
     }
 
+    // Calculate dynamic tolerance based on element's line height for better mobile support
+    const computedStyle = window.getComputedStyle(element);
+    const lineHeight = parseFloat(computedStyle.lineHeight);
+    const fontSize = parseFloat(computedStyle.fontSize);
+    // Use 30% of line height or font size as tolerance (whichever is available)
+    const tolerance = !isNaN(lineHeight) ? lineHeight * 0.3 : (!isNaN(fontSize) ? fontSize * 0.3 : 8);
+
     const linesByTop = new Map<number, string[]>();
     const uniqueTops: number[] = [];
 
     for (const { word, top } of wordsWithPositions) {
         // Find a representative 'top' value for this line to group words
         // that are vertically very close. This handles sub-pixel variations.
-        const lineTop = uniqueTops.find(t => Math.abs(t - top) < 5);
+        const lineTop = uniqueTops.find(t => Math.abs(t - top) < tolerance);
 
         if (lineTop !== undefined) {
             linesByTop.get(lineTop)!.push(word);
