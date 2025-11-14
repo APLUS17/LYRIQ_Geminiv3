@@ -147,9 +147,12 @@ const App: React.FC = () => {
                 return newCountsBySection;
             });
         };
-        
-        // Run calculation immediately on content change for real-time feedback
-        calculateVisualLineCounts();
+
+        // Use requestAnimationFrame to ensure DOM layout is complete before measuring
+        // This is critical for mobile devices where layout timing differs from desktop
+        const rafId = requestAnimationFrame(() => {
+            calculateVisualLineCounts();
+        });
 
         const debounce = (fn: Function, ms = 150) => {
             let timeoutId: ReturnType<typeof setTimeout>;
@@ -158,11 +161,22 @@ const App: React.FC = () => {
                 timeoutId = setTimeout(() => fn.apply(this, args), ms);
             };
         };
-        
+
         const debouncedResizeHandler = debounce(calculateVisualLineCounts);
         window.addEventListener('resize', debouncedResizeHandler);
-        
-        return () => window.removeEventListener('resize', debouncedResizeHandler);
+
+        // Also listen for visualViewport changes (mobile keyboard appearing/disappearing)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', debouncedResizeHandler);
+        }
+
+        return () => {
+            cancelAnimationFrame(rafId);
+            window.removeEventListener('resize', debouncedResizeHandler);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', debouncedResizeHandler);
+            }
+        };
 
     }, [song, showSyllableCount, activeSectionId]);
 
