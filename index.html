@@ -160,6 +160,73 @@
           opacity: 1;
           pointer-events: auto;
         }
+
+        .takes-player-overlay {
+            z-index: 110; /* Ensure takes player is above master player (z-index: 100) */
+        }
+
+        /* LYRIQ INITIAL CONTROLS STYLES */
+        .lyriq-player-view.empty-state .lyriq-initial-controls {
+          opacity: 1;
+          pointer-events: auto;
+          transform: translateY(0);
+        }
+
+        .lyriq-initial-controls {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 60; 
+          display: flex;
+          align-items: center;
+          background-color: #2a2a2e;
+          border-top: 1px solid #3a3a3e;
+          padding: 1rem 1.5rem;
+          gap: 1rem;
+          transition: opacity 0.3s ease, transform 0.3s ease;
+          opacity: 0;
+          pointer-events: none;
+          transform: translateY(100%);
+        }
+
+        .lyriq-initial-btn {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: #e5e7eb; /* text-gray-200 */
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem; /* space-x-3 */
+          padding: 0.625rem 1rem; /* py-2.5 px-4 */
+          font-size: 1rem; /* text-base */
+          font-weight: 500;
+          cursor: pointer;
+          border-radius: 0.75rem; /* rounded-xl */
+          transition: background-color 0.2s;
+        }
+        .lyriq-initial-btn:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .lyriq-initial-separator {
+          width: 1px;
+          height: 24px;
+          background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
     </style>
 <script type="importmap">
 {

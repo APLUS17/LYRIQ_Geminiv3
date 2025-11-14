@@ -10,6 +10,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import RhymePopup from './components/RhymePopup';
 import AudioRecorder from './components/AudioRecorder';
 import BottomTakesPlayer from './components/BottomTakesPlayer';
+import InitialControls from './components/InitialControls';
+import MasterPlayer from './components/MasterPlayer';
 
 const initialSectionId = crypto.randomUUID();
 const initialSong: Song = {
@@ -53,6 +55,8 @@ const App: React.FC = () => {
     // Syllable count state for wrapped lines
     const [lineCountsBySection, setLineCountsBySection] = useState<Record<string, (number[] | null)[]>>({});
 
+    // Master beat state
+    const [beat, setBeat] = useState<{ url: string; file: File } | null>(null);
 
     // Rhyme popup state
     const [rhymePopup, setRhymePopup] = useState<{
@@ -91,6 +95,8 @@ const App: React.FC = () => {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const streamRef = useRef<MediaStream | null>(null);
+
+    const isInitialState = beat === null && song.sections.every(s => s.takes.length === 0);
 
     useEffect(() => {
       document.execCommand('defaultParagraphSeparator', false, 'div');
@@ -553,8 +559,9 @@ const App: React.FC = () => {
             mediaRecorderRef.current.start();
             setRecordingState({ status: 'recording', targetSectionId: sectionId, startTime: Date.now() });
 
-        } catch (err) {
-            console.error("Error accessing microphone:", err);
+// FIX: Renamed 'err' to 'error' for consistency and to resolve a 'Cannot find name' error.
+        } catch (error) {
+            console.error("Error accessing microphone:", error);
         }
     };
 
@@ -580,11 +587,23 @@ const App: React.FC = () => {
         setSong(prevSong => ({ ...prevSong, sections: updatedSections }));
     };
 
+    const handleAddBeat = (file: File) => {
+        const url = URL.createObjectURL(file);
+        setBeat({ url, file });
+    };
+
+    const handleRemoveBeat = () => {
+        if (beat) {
+            URL.revokeObjectURL(beat.url);
+            setBeat(null);
+        }
+    };
+
     const anchorEl = geminiModalSectionId ? geminiIconRefs.current[geminiModalSectionId] : null;
     const activePlayerSection = song.sections.find(s => s.id === activePlayerSectionId);
 
     return (
-        <div className="h-screen flex flex-col">
+        <div className={`h-screen flex flex-col lyriq-player-view ${isInitialState ? 'empty-state' : ''}`}>
             <main className="flex-grow py-8 max-w-screen-xl mx-auto px-4 w-full h-full">
                 <div className="bg-[#1c1c1e] rounded-lg h-full flex flex-col overflow-hidden">
                     <div className="relative flex items-center justify-between px-6 py-4 flex-shrink-0">
@@ -773,10 +792,16 @@ const App: React.FC = () => {
             )}
             {activePlayerSection && (
                 <BottomTakesPlayer
+                    className="takes-player-overlay"
                     section={activePlayerSection}
                     onClose={() => setActivePlayerSectionId(null)}
                     onDeleteTake={handleDeleteTake}
                 />
+            )}
+             <InitialControls onAddBeat={handleAddBeat} />
+
+            {beat && (
+                <MasterPlayer beat={beat} onRemoveBeat={handleRemoveBeat} />
             )}
         </div>
     );

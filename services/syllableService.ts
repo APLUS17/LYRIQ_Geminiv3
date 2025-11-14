@@ -44,6 +44,10 @@ export function getSyllableCount(html: string): number | null {
 function getWordsWithPositions(element: HTMLElement): { word: string, top: number }[] {
     const words: { word: string, top: number }[] = [];
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
+
+    // Get the element's bounding rect to calculate relative positions
+    const elementRect = element.getBoundingClientRect();
+
     let node;
     while ((node = walker.nextNode())) {
         const text = node.textContent;
@@ -51,19 +55,22 @@ function getWordsWithPositions(element: HTMLElement): { word: string, top: numbe
 
         const wordsInNode = text.match(/\S+/g);
         if (!wordsInNode) continue;
-        
+
         let searchIndex = 0;
         for (const word of wordsInNode) {
             const range = document.createRange();
             const wordIndex = text.indexOf(word, searchIndex);
             if (wordIndex === -1) continue;
-            
+
             range.setStart(node, wordIndex);
             range.setEnd(node, wordIndex + word.length);
             const rect = range.getBoundingClientRect();
 
             if (rect.width > 0 && rect.height > 0) {
-                words.push({ word, top: rect.top });
+                // Use relative position instead of absolute viewport position
+                // This makes the calculation stable across scrolling and viewport changes
+                const relativeTop = rect.top - elementRect.top;
+                words.push({ word, top: relativeTop });
             }
             searchIndex = wordIndex + word.length;
         }

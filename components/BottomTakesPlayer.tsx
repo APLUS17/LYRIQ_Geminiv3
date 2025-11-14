@@ -9,6 +9,7 @@ interface BottomTakesPlayerProps {
     section: Section;
     onClose: () => void;
     onDeleteTake: (takeId: string, sectionId: string) => void;
+    className?: string;
 }
 
 const formatDuration = (seconds: number) => {
@@ -39,7 +40,7 @@ async function decodeAudioData(base64: string): Promise<AudioBuffer> {
 }
 
 
-const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose, onDeleteTake }) => {
+const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose, onDeleteTake, className }) => {
     const [playerState, setPlayerState] = useState<'peeking' | 'expanded'>('peeking');
     const [isVisible, setIsVisible] = useState(false);
     
@@ -267,7 +268,7 @@ const BottomTakesPlayer: React.FC<BottomTakesPlayerProps> = ({ section, onClose,
         playerStyle.transition = 'none';
     }
 
-    const playerClassName = `peek-takes-player ${isVisible ? playerState : ''}`;
+    const playerClassName = `peek-takes-player ${isVisible ? playerState : ''} ${className || ''}`;
     
     return (
         <div
