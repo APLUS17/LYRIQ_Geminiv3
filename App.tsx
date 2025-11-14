@@ -148,10 +148,14 @@ const App: React.FC = () => {
             });
         };
 
-        // Use requestAnimationFrame to ensure DOM layout is complete before measuring
-        // This is critical for mobile devices where layout timing differs from desktop
-        const rafId = requestAnimationFrame(() => {
-            calculateVisualLineCounts();
+        // Use double requestAnimationFrame + small delay for mobile browsers
+        // Mobile needs more time than desktop to complete layout calculations
+        let rafId1: number, rafId2: number, timeoutId: number;
+        rafId1 = requestAnimationFrame(() => {
+            rafId2 = requestAnimationFrame(() => {
+                // Additional 10ms delay ensures mobile layout is complete
+                timeoutId = setTimeout(calculateVisualLineCounts, 10) as any;
+            });
         });
 
         const debounce = (fn: Function, ms = 150) => {
@@ -171,7 +175,9 @@ const App: React.FC = () => {
         }
 
         return () => {
-            cancelAnimationFrame(rafId);
+            cancelAnimationFrame(rafId1);
+            cancelAnimationFrame(rafId2);
+            clearTimeout(timeoutId);
             window.removeEventListener('resize', debouncedResizeHandler);
             if (window.visualViewport) {
                 window.visualViewport.removeEventListener('resize', debouncedResizeHandler);
