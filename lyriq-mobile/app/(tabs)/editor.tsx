@@ -5,15 +5,21 @@
 
 import React, { useState } from 'react';
 import { View, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Header } from '../../components/Header';
 import { SectionCard } from '../../components/SectionCard';
 import { SectionModal } from '../../components/SectionModal';
 import { AudioRecorder } from '../../components/AudioRecorder';
 import { RecordButton } from '../../components/RecordButton';
+import { TakesPlayer } from '../../components/TakesPlayer';
+import { MasterBeatPlayer } from '../../components/MasterBeatPlayer';
+import { SwipeableSection } from '../../components/SwipeableSection';
+import { AIActionModal } from '../../components/AIActionModal';
 import { COLORS, SPACING } from '../../theme';
-import { PlusIcon, SyllableCountIcon } from '../../components/Icons';
+import { PlusIcon, SyllableCountIcon, MusicNoteIcon } from '../../components/Icons';
 import { useSongState } from '../../hooks/useSongState';
 import { useAudioRecording } from '../../hooks/useAudioRecording';
+import { MasterBeat, Lyric } from '../../types';
 
 export default function EditorScreen() {
   const {
@@ -25,6 +31,7 @@ export default function EditorScreen() {
     addSection,
     updateSectionTitle,
     updateSectionLyrics,
+    deleteSection,
   } = useSongState();
 
   const {
@@ -37,6 +44,10 @@ export default function EditorScreen() {
   const [showSyllableCount, setShowSyllableCount] = useState(false);
   const [isUnstructured, setIsUnstructured] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activePlayerSectionId, setActivePlayerSectionId] = useState<string | null>(null);
+  const [masterBeat, setMasterBeat] = useState<MasterBeat | null>(null);
+  const [showMasterBeatPlayer, setShowMasterBeatPlayer] = useState(false);
+  const [aiModalSectionId, setAiModalSectionId] = useState<string | null>(null);
 
   const handleRecordPress = async (sectionId: string) => {
     if (isRecording) return;
@@ -46,7 +57,6 @@ export default function EditorScreen() {
   const handleRecordSave = async () => {
     const audioTake = await handleStopRecording(true);
     if (audioTake && recordingState.targetSectionId) {
-      // Add take to the target section
       setSong((prev) => ({
         ...prev,
         sections: prev.sections.map((section) =>
@@ -63,13 +73,38 @@ export default function EditorScreen() {
   };
 
   const handleTakesPress = (sectionId: string) => {
-    console.log('Takes pressed for section:', sectionId);
-    // TODO: Open takes player bottom sheet
+    setActivePlayerSectionId(sectionId);
+  };
+
+  const handleDeleteTake = (takeId: string) => {
+    if (!activePlayerSectionId) return;
+
+    setSong((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section) =>
+        section.id === activePlayerSectionId
+          ? { ...section, takes: section.takes.filter((t) => t.id !== takeId) }
+          : section
+      ),
+    }));
   };
 
   const handleAIPress = (sectionId: string) => {
-    console.log('AI pressed for section:', sectionId);
-    // TODO: Open AI modal
+    setAiModalSectionId(sectionId);
+  };
+
+  const handleAIApply = (sectionId: string, newLyrics: string) => {
+    const lines = newLyrics.split('\n');
+    const lyrics: Lyric[] = lines.map((line) => ({
+      id: `${Date.now()}_${Math.random()}`,
+      text: line,
+    }));
+
+    updateSectionLyrics(sectionId, lyrics);
+  };
+
+  const handleMasterBeatPress = () => {
+    setShowMasterBeatPlayer(true);
   };
 
   const handleAddSection = (title: string) => {
@@ -95,6 +130,13 @@ export default function EditorScreen() {
         rightComponent={
           <View style={styles.headerButtons}>
             <TouchableOpacity
+              onPress={handleMasterBeatPress}
+              style={styles.headerButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MusicNoteIcon size={22} color={masterBeat ? COLORS.accent : COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={() => setShowSyllableCount(!showSyllableCount)}
               style={styles.headerButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -112,27 +154,34 @@ export default function EditorScreen() {
         }
       />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        {song.sections.map((section) => (
-          <SectionCard
-            key={section.id}
-            section={section}
-            isActive={activeSectionId === section.id}
-            onLyricsChange={updateSectionLyrics}
-            onTitleChange={updateSectionTitle}
-            onFocus={setActiveSectionId}
-            onRecordPress={handleRecordPress}
-            onTakesPress={handleTakesPress}
-            onAIPress={handleAIPress}
-            showSyllableCount={showSyllableCount}
-            isUnstructured={isUnstructured}
-          />
-        ))}
-      </ScrollView>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          {song.sections.map((section) => (
+            <SwipeableSection
+              key={section.id}
+              onDelete={() => deleteSection(section.id)}
+              enabled={!isUnstructured && song.sections.length > 1}
+            >
+              <SectionCard
+                section={section}
+                isActive={activeSectionId === section.id}
+                onLyricsChange={updateSectionLyrics}
+                onTitleChange={updateSectionTitle}
+                onFocus={setActiveSectionId}
+                onRecordPress={handleRecordPress}
+                onTakesPress={handleTakesPress}
+                onAIPress={handleAIPress}
+                showSyllableCount={showSyllableCount}
+                isUnstructured={isUnstructured}
+              />
+            </SwipeableSection>
+          ))}
+        </ScrollView>
+      </GestureHandlerRootView>
 
       <SectionModal
         visible={isModalOpen}
@@ -156,6 +205,45 @@ export default function EditorScreen() {
           isRecording={isRecording}
         />
       )}
+
+      {/* Takes Player */}
+      {activePlayerSectionId && (() => {
+        const section = song.sections.find((s) => s.id === activePlayerSectionId);
+        return section && section.takes.length > 0 ? (
+          <TakesPlayer
+            section={section}
+            onClose={() => setActivePlayerSectionId(null)}
+            onDeleteTake={handleDeleteTake}
+          />
+        ) : null;
+      })()}
+
+      {/* Master Beat Player */}
+      {showMasterBeatPlayer && (
+        <MasterBeatPlayer
+          beat={masterBeat}
+          onBeatChange={setMasterBeat}
+          onClose={() => setShowMasterBeatPlayer(false)}
+        />
+      )}
+
+      {/* AI Action Modal */}
+      {aiModalSectionId && (() => {
+        const section = song.sections.find((s) => s.id === aiModalSectionId);
+        if (!section) return null;
+
+        const currentLyrics = section.lyrics.map((l) => l.text).join('\n');
+
+        return (
+          <AIActionModal
+            visible={true}
+            sectionTitle={section.title}
+            currentLyrics={currentLyrics}
+            onClose={() => setAiModalSectionId(null)}
+            onApply={(newLyrics) => handleAIApply(aiModalSectionId, newLyrics)}
+          />
+        );
+      })()}
     </View>
   );
 }
