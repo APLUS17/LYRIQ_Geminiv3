@@ -9,6 +9,10 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Locks
+package-lock.json
+yarn.lock
+
 # Native
 .kotlin/
 *.orig.*

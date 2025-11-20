@@ -90,14 +90,15 @@ lyriq-mobile/
 
 ## 🛠 Technology Stack
 
-- **Framework**: React Native 0.81 + Expo SDK 54
-- **Navigation**: expo-router (file-based routing)
+- **Framework**: React Native 0.81.5 + Expo SDK 54
+- **Navigation**: expo-router v6 (file-based routing)
 - **Audio**: expo-av (recording + playback)
-- **Gestures**: react-native-gesture-handler + reanimated
+- **Gestures**: react-native-gesture-handler + reanimated v4
 - **Bottom Sheets**: @gorhom/bottom-sheet
 - **Storage**: @react-native-async-storage/async-storage
 - **AI**: @google/genai (Gemini 2.5 Flash)
-- **Icons**: react-native-svg
+- **Graphics**: react-native-svg
+- **Worklets**: react-native-worklets-core (for animations)
 
 ## 📦 Installation
 
@@ -191,5 +192,6 @@ Proprietary - Lyriq Mobile App
 
 **Status**: ✅ Production Ready (All 6 Phases Complete)
 **Version**: 1.0.0
+**Expo SDK**: 54
 **Last Updated**: Nov 2025
 **Expo Go**: Fully Compatible
