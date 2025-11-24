@@ -121,7 +121,7 @@ const MasterPlayer: React.FC<MasterPlayerProps> = ({ beat, onRemoveBeat }) => {
     const handleSwipeStart = (e: React.MouseEvent | React.TouchEvent) => {
         const target = e.target as HTMLElement;
         if (target.closest('button') || (waveformContainerRef.current && waveformContainerRef.current.contains(target))) return;
-        const startY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        const startY = 'touches' in e ? e.touches[0].clientX : e.clientY;
         setSwipeState({ startY, currentY: startY });
     };
 
@@ -173,36 +173,36 @@ const MasterPlayer: React.FC<MasterPlayerProps> = ({ beat, onRemoveBeat }) => {
             <div className="peek-modal-peek-header">
                 <div className="peek-peek-song-info">
                     <h2>Master Beat</h2>
-                    <span>{formatDuration(currentTime)} / {formatDuration(totalDuration)}</span>
+                    <span className="font-mono">{formatDuration(currentTime)} / {formatDuration(totalDuration)}</span>
                 </div>
                 <div className="peek-peek-controls">
-                    <button type="button" onClick={handlePlayPause} className="bg-white text-black rounded-full p-2">
+                    <button type="button" onClick={handlePlayPause} className="bg-gray-100 hover:bg-white text-black rounded-full p-3 transition-colors shadow-lg shadow-white/10">
                         {isPlaying ? <PauseIcon className="h-5 w-5"/> : <PlayIcon className="h-5 w-5"/>}
                     </button>
-                    <button type="button" onClick={onRemoveBeat} className="text-gray-400 hover:text-white p-1"><TrashIcon/></button>
+                    <button type="button" onClick={onRemoveBeat} className="text-gray-400 hover:text-white p-2"><TrashIcon/></button>
                 </div>
             </div>
             <div className="peek-modal-expanded-content">
-                <div className="flex justify-between items-center mb-2">
+                <div className="flex justify-between items-end mb-4 px-1">
                     <div className="text-sm">
-                        <p className="text-gray-200 font-bold">Master Beat</p>
-                        <p className="text-gray-400 truncate max-w-xs">{beat.file.name}</p>
+                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Instrumental</p>
+                        <p className="text-gray-200 font-semibold text-lg truncate max-w-xs">{beat.file.name}</p>
                     </div>
-                     <button type="button" onClick={onRemoveBeat} className="text-gray-400 hover:text-white p-1"><TrashIcon/></button>
+                     <button type="button" onClick={onRemoveBeat} className="p-2 bg-white/5 hover:bg-red-500/20 hover:text-red-500 rounded-lg transition-colors text-gray-400"><TrashIcon/></button>
                 </div>
-                <div ref={waveformContainerRef} className="relative h-16 w-full flex items-center cursor-pointer my-2" onMouseDown={handleScrubStart} onTouchStart={handleScrubStart}>
+                <div ref={waveformContainerRef} className="relative h-20 w-full flex items-center cursor-pointer my-2 bg-black/20 rounded-lg overflow-hidden border border-white/5" onMouseDown={handleScrubStart} onTouchStart={handleScrubStart}>
                     {isLoadingWaveform ? (
-                         <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">Loading beat...</div>
+                         <div className="w-full h-full flex items-center justify-center text-xs text-gray-500 font-mono">Loading beat...</div>
                     ) : (
-                       <canvas ref={canvasRef} className="w-full h-full" />
+                       <canvas ref={canvasRef} className="w-full h-full opacity-80" />
                     )}
                 </div>
-                 <div className="flex justify-between items-center mt-2">
-                    <p className="font-mono text-xs text-gray-400">{formatDuration(currentTime)}</p>
-                    <button type="button" onClick={handlePlayPause} className="bg-white text-black rounded-full p-2">
+                 <div className="flex justify-between items-center mt-4">
+                    <p className="font-mono text-xs text-gray-500 tabular-nums">{formatDuration(currentTime)}</p>
+                    <button type="button" onClick={handlePlayPause} className="bg-gray-100 hover:bg-white text-black rounded-full p-4 transition-colors shadow-[0_0_20px_-5px_rgba(255,255,255,0.3)] scale-100 hover:scale-105 active:scale-95">
                         {isPlaying ? <PauseIcon className="h-6 w-6"/> : <PlayIcon className="h-6 w-6"/>}
                     </button>
-                    <p className="font-mono text-xs text-gray-400">{formatDuration(totalDuration)}</p>
+                    <p className="font-mono text-xs text-gray-500 tabular-nums">{formatDuration(totalDuration)}</p>
                 </div>
             </div>
         </div>

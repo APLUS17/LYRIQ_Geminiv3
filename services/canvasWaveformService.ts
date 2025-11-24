@@ -33,13 +33,13 @@ export function drawStaticWaveform(ctx: CanvasRenderingContext2D, buffer: AudioB
         }
     };
     
-    // Draw background (unplayed part)
-    drawBars(0, width, '#6b7280'); // gray-500
+    // Draw background (unplayed part) - darker gray for new theme
+    drawBars(0, width, '#3f3f46'); // zinc-700
 
-    // Draw foreground (played part)
+    // Draw foreground (played part) - accent yellow
     drawBars(0, Math.floor(progressPixels), '#facc15'); // yellow-400
 
     // Draw playhead
-    ctx.fillStyle = '#facc15'; // yellow-400
-    ctx.fillRect(progressPixels, 0, 1.5, height);
+    ctx.fillStyle = '#fefce8'; // yellow-50 (bright white-yellow)
+    ctx.fillRect(progressPixels, 0, 2, height);
 }

@@ -4,7 +4,7 @@ import { MusicNoteIcon } from './Icons';
 const AddBeatIcon: React.FC = () => (
     <span className="relative inline-flex items-center justify-center">
         <MusicNoteIcon />
-        <svg className="absolute -top-1 -right-1 h-3 w-3 text-gray-200" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="absolute -top-1 -right-1 h-2.5 w-2.5 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
         </svg>
     </span>
@@ -32,7 +32,7 @@ const InitialControls: React.FC<InitialControlsProps> = ({ onAddBeat }) => {
         <div className="lyriq-initial-controls">
             <button type="button" onClick={handleAddBeatClick} className="lyriq-initial-btn" aria-label="Add beat from file">
                 <AddBeatIcon />
-                <span>Add beat</span>
+                <span>Add Beat</span>
             </button>
             <input
                 type="file"

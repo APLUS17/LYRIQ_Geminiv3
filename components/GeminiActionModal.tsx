@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { GeminiIcon } from './Icons';
 
 interface GeminiActionModalProps {
   anchorEl: HTMLElement;
@@ -51,21 +52,25 @@ const GeminiActionModal: React.FC<GeminiActionModalProps> = ({ anchorEl, onClose
     <div
       ref={modalRef}
       style={{ top: position.top, left: position.left }}
-      className="fixed bg-[#2a2a2e] text-gray-200 rounded-lg z-50 p-2 text-sm font-medium animate-fade-in-fast w-48"
+      className="fixed bg-zinc-900/90 backdrop-blur-xl border border-white/10 text-gray-200 rounded-xl shadow-2xl z-50 p-1.5 text-sm font-medium animate-fade-in-fast w-48"
     >
-      <ul>
+      <div className="px-3 py-2 mb-1 border-b border-white/5 flex items-center gap-2">
+         <GeminiIcon className="w-3 h-3 text-blue-400"/>
+         <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider">Gemini AI</span>
+      </div>
+      <ul className="space-y-0.5">
         <li>
-          <button type="button" onClick={() => handleActionClick('suggest')} className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#3a3a3e] transition-colors">
+          <button type="button" onClick={() => handleActionClick('suggest')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-gray-300">
             Suggest next line
           </button>
         </li>
         <li>
-          <button type="button" onClick={() => handleActionClick('rhyme')} className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#3a3a3e] transition-colors">
+          <button type="button" onClick={() => handleActionClick('rhyme')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-gray-300">
             Suggest rhymes
           </button>
         </li>
         <li>
-          <button type="button" onClick={() => handleActionClick('rewrite')} className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#3a3a3e] transition-colors">
+          <button type="button" onClick={() => handleActionClick('rewrite')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-gray-300">
             Rewrite
           </button>
         </li>

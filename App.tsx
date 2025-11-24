@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import { Song, Section, Lyric, AudioTake } from './types';
 import { getSyllableCount, getSyllableCountsForWrappedLines } from './services/syllableService';
@@ -155,7 +153,6 @@ const App: React.FC = () => {
         };
         
         // Use double requestAnimationFrame + small delay for mobile browsers
-        // Mobile needs more time than desktop to complete layout calculations
         let rafId1: number, rafId2: number, timeoutId: number;
         rafId1 = requestAnimationFrame(() => {
             rafId2 = requestAnimationFrame(() => {
@@ -175,7 +172,6 @@ const App: React.FC = () => {
         const debouncedResizeHandler = debounce(calculateVisualLineCounts);
         window.addEventListener('resize', debouncedResizeHandler);
 
-        // Also listen for visualViewport changes (mobile keyboard appearing/disappearing)
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', debouncedResizeHandler);
         }
@@ -239,7 +235,7 @@ const App: React.FC = () => {
                 document.body.style.userSelect = 'none';
                 document.body.style.cursor = 'grabbing';
             }
-            setDragState(null); // Cancel swipe
+            setDragState(null);
             longPressTimeout.current = null;
         }, 300);
 
@@ -578,8 +574,6 @@ const App: React.FC = () => {
 
             mediaRecorderRef.current.start();
             setRecordingState({ status: 'recording', targetSectionId: sectionId, startTime: Date.now() });
-
-// FIX: Renamed 'err' to 'error' for consistency and to resolve a 'Cannot find name' error.
         } catch (error) {
             console.error("Error accessing microphone:", error);
         }
@@ -624,26 +618,44 @@ const App: React.FC = () => {
 
     return (
         <div className={`h-screen flex flex-col lyriq-player-view ${isInitialState ? 'empty-state' : ''}`}>
-            <main className="flex-grow py-8 max-w-screen-xl mx-auto px-4 w-full h-full">
-                <div className="bg-[#1c1c1e] rounded-lg h-full flex flex-col overflow-hidden">
-                    <div className="relative flex items-center justify-between px-6 py-4 flex-shrink-0">
-                        <h2 className="text-2xl font-bold text-gray-200">Lyriq</h2>
-                        <div className="flex items-center space-x-4">
-                            <button type="button" onClick={() => setIsUnstructured(prev => !prev)} aria-label="Toggle unstructured view">
+            <main className="flex-grow py-8 max-w-screen-xl mx-auto px-4 w-full h-full relative">
+                {/* Glass Container for the Notepad */}
+                <div className="bg-zinc-900/40 backdrop-blur-sm border border-white/5 rounded-2xl h-full flex flex-col overflow-hidden shadow-2xl relative">
+                    
+                    {/* Header / Toolbar */}
+                    <div className="relative flex items-center justify-between px-6 py-5 flex-shrink-0 border-b border-white/5 bg-zinc-900/50 backdrop-blur-md z-10">
+                        <h2 className="text-3xl font-brand font-bold text-transparent bg-clip-text bg-gradient-to-br from-white via-gray-200 to-gray-400 tracking-tight">Lyriq</h2>
+                        <div className="flex items-center space-x-2">
+                            <button 
+                                type="button" 
+                                onClick={() => setIsUnstructured(prev => !prev)} 
+                                aria-label="Toggle unstructured view"
+                                className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                            >
                                 <UnderlineIcon active={isUnstructured} />
                             </button>
-                            <button type="button" onClick={() => setShowSyllableCount(prev => !prev)} aria-label="Toggle syllable count">
+                            <button 
+                                type="button" 
+                                onClick={() => setShowSyllableCount(prev => !prev)} 
+                                aria-label="Toggle syllable count"
+                                className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                            >
                                 <SyllableCountIcon active={showSyllableCount} />
                             </button>
-                            <button type="button" onClick={() => setIsModalOpen(true)} aria-label="Add section">
+                            <button 
+                                type="button" 
+                                onClick={() => setIsModalOpen(true)} 
+                                aria-label="Add section"
+                                className="p-2 rounded-lg hover:bg-white/5 transition-colors text-gray-400 hover:text-white"
+                            >
                                 <PlusIcon />
                             </button>
                         </div>
                         <SectionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddSection={addSection} />
                     </div>
 
-                    <div className="flex-grow overflow-y-auto" onScroll={clearRhymePopupAndTimeout}>
-                        <div className="pt-6 px-6 pb-24">
+                    <div className="flex-grow overflow-y-auto custom-scrollbar" onScroll={clearRhymePopupAndTimeout}>
+                        <div className="pt-6 px-4 md:px-8 pb-32">
                             {song.sections.map((section, index) => {
                                 const isDeleting = deletingSections.has(section.id);
                                 const currentTranslateX = (dragState?.sectionId === section.id) ? dragState.translateX : 0;
@@ -679,7 +691,7 @@ const App: React.FC = () => {
                                 return (
                                     <div key={section.id}>
                                         <div
-                                            className={`transition-all duration-500 ease-in-out ${isUnstructured ? 'mb-0' : 'mb-8'} ${isDeleting ? 'max-h-0 opacity-0 !mb-0' : 'max-h-[500px]'}`}
+                                            className={`transition-all duration-500 ease-in-out ${isUnstructured ? 'mb-0' : 'mb-8'} ${isDeleting ? 'max-h-0 opacity-0 !mb-0' : 'max-h-[600px]'}`}
                                         >
                                             <div
                                                 ref={el => { sectionContainerRefs.current[section.id] = el; }}
@@ -688,42 +700,50 @@ const App: React.FC = () => {
                                                 onMouseDown={(e) => handleGestureStart(e, section.id)}
                                                 onTouchStart={(e) => handleGestureStart(e, section.id)}
                                             >
-                                                <div className={`absolute inset-0 rounded-lg flex justify-end items-center pr-8 pointer-events-none ${!isUnstructured ? 'bg-red-600' : ''}`}>
+                                                <div className={`absolute inset-0 rounded-xl flex justify-end items-center pr-8 pointer-events-none ${!isUnstructured ? 'bg-red-900/50' : ''}`}>
                                                     {!isUnstructured && <TrashIcon />}
                                                 </div>
 
                                                 <div
                                                     style={{ transform: `translateX(${currentTranslateX}px)` }}
-                                                    className={`relative transition-all duration-500 ease-in-out ${dragState?.sectionId === section.id && dragState?.isDragging ? '!duration-0' : ''} ${isUnstructured ? 'bg-[#1c1c1e] shadow-none p-0 mb-6' : 'bg-[#2a2a2e] rounded-lg p-6 shadow-md'} ${isBeingDragged ? 'shadow-2xl scale-105' : ''}`}
+                                                    className={`relative transition-all duration-300 ease-out ${dragState?.sectionId === section.id && dragState?.isDragging ? '!duration-0' : ''} 
+                                                    ${isUnstructured 
+                                                        ? 'bg-transparent border-l-2 border-transparent pl-4 hover:border-white/10 mb-6' 
+                                                        : 'bg-[#18181b] border border-white/5 rounded-xl p-6 shadow-lg hover:border-white/10 hover:shadow-xl'
+                                                    } 
+                                                    ${isBeingDragged ? 'shadow-2xl scale-[1.02] z-50 bg-zinc-800' : ''}
+                                                    ${activeSectionId === section.id && !isUnstructured ? 'ring-1 ring-white/10 bg-[#1c1c1f]' : ''}
+                                                    `}
                                                 >
-                                                    <div className="flex items-center justify-between mb-3">
-                                                        <div className="flex items-center gap-2">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="flex items-center gap-3 group">
                                                             <h3 
                                                                 contentEditable
                                                                 suppressContentEditableWarning
                                                                 onInput={(e) => updateSectionTitle(section.id, e.currentTarget.innerText)}
                                                                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLHeadingElement).blur(); }}}
                                                                 onPaste={handleTitlePaste}
-                                                                className="w-fit text-gray-500 font-semibold tracking-wider text-sm uppercase outline-none focus:ring-1 focus:ring-gray-500 rounded-md"
+                                                                className={`w-fit font-bold tracking-wide text-xs uppercase outline-none rounded-sm px-1 -ml-1 transition-colors
+                                                                    ${isUnstructured ? 'text-gray-500 focus:text-gray-300' : 'text-gray-400 bg-white/5 py-0.5 px-2'}`}
                                                             >{section.title}</h3>
                                                             <button
                                                                 ref={el => { geminiIconRefs.current[section.id] = el; }}
                                                                 type="button"
                                                                 aria-label="Gemini Actions"
                                                                 onClick={(e) => handleGeminiIconClick(e, section.id)}
-                                                                className={`transition-all duration-300 ease-in-out ${isUnstructured && activeSectionId === section.id ? 'w-[15px] opacity-100' : 'w-0 opacity-0'}`}
-                                                                tabIndex={isUnstructured && activeSectionId === section.id ? 0 : -1}
+                                                                className={`transition-all duration-300 ease-in-out text-blue-400 hover:text-blue-300 ${activeSectionId === section.id ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2 pointer-events-none'}`}
+                                                                tabIndex={activeSectionId === section.id ? 0 : -1}
                                                             >
-                                                                <GeminiIcon className="h-[15px] w-[15px] text-blue-400 flex-shrink-0" />
+                                                                <GeminiIcon className="h-4 w-4" />
                                                             </button>
                                                         </div>
                                                         {!isUnstructured && (
-                                                            <div className="flex items-center space-x-2">
+                                                            <div className="flex items-center space-x-1">
                                                                 {section.takes.length > 0 && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => setActivePlayerSectionId(section.id)}
-                                                                        className="bg-gray-600/50 rounded-full flex items-center space-x-1.5 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-600 transition-colors"
+                                                                        className="bg-zinc-800/80 border border-white/5 rounded-full flex items-center space-x-1.5 px-3 py-1 text-xs font-medium text-gray-300 hover:bg-zinc-700 hover:text-white transition-all"
                                                                         aria-label={`Show ${section.takes.length} audio takes`}
                                                                     >
                                                                         <MusicNoteIcon />
@@ -734,7 +754,7 @@ const App: React.FC = () => {
                                                                     type="button"
                                                                     aria-label="Record audio"
                                                                     onClick={() => handleRecordClick(section.id)}
-                                                                    className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                                                                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-full transition-all"
                                                                 >
                                                                     <MicrophoneIcon />
                                                                 </button>
@@ -756,31 +776,45 @@ const App: React.FC = () => {
                                                             onTouchEnd={handleSelection}
                                                             onInput={e => handleLyricsInput(section.id, e.currentTarget as HTMLDivElement)}
                                                             onPaste={handlePaste}
-                                                            className="lyric-editor flex-grow outline-none text-gray-200 text-lg leading-relaxed"
+                                                            className="lyric-editor flex-grow outline-none text-gray-200 text-lg leading-relaxed tracking-normal"
                                                         />
-                                                        <div className={`font-mono text-gray-600 pl-4 w-12 text-right transition-opacity duration-300 ${showSyllableCount ? 'opacity-100' : 'opacity-0'}`}>
+                                                        {/* Syllable Count Column */}
+                                                        <div className={`pl-4 w-14 text-right transition-opacity duration-300 flex flex-col items-end gap-[0px] ${showSyllableCount ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                                                             {section.lyrics.map((lyric, lineIndex) => {
                                                                 const counts = (lineCountsBySection[section.id] || [])[lineIndex];
+
+                                                                const renderPill = (val: number | null) => (
+                                                                     <div className="text-lg leading-relaxed flex items-center justify-end h-[1.75em]"> 
+                                                                        {val !== null && val > 0 && (
+                                                                            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 text-[10px] font-mono font-medium text-gray-400 bg-white/5 border border-white/5 rounded-full tabular-nums">
+                                                                                {val}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                );
 
                                                                 if (!lyric.html.trim()) {
                                                                     return <div key={lyric.id} className="text-lg leading-relaxed">{'\u00A0'}</div>;
                                                                 }
 
-                                                                // If we have calculated wrapped line counts, display them
-                                                                if (counts && counts.length > 0) {
-                                                                    return counts.map((count, wrapIndex) => (
-                                                                        <div key={`${lyric.id}-${wrapIndex}`} className="text-lg leading-relaxed">
-                                                                            {count}
+                                                                if (counts && counts.length > 1) {
+                                                                    return (
+                                                                        <div key={lyric.id}>
+                                                                            {counts.map((count, wrapIndex) => (
+                                                                                <React.Fragment key={wrapIndex}>
+                                                                                    {renderPill(count)}
+                                                                                </React.Fragment>
+                                                                            ))}
                                                                         </div>
-                                                                    ));
+                                                                    );
                                                                 }
                                                                 
-                                                                // As a fallback for the active line (before layout effect runs), show the simple count.
                                                                 const fallbackCount = getSyllableCount(lyric.html);
+                                                                const singleCount = (counts && counts.length === 1) ? counts[0] : fallbackCount;
                                                                 return (
-                                                                    <div key={lyric.id} className="text-lg leading-relaxed">
-                                                                        {fallbackCount ?? '\u00A0'}
-                                                                    </div>
+                                                                    <React.Fragment key={lyric.id}>
+                                                                         {renderPill(singleCount)}
+                                                                    </React.Fragment>
                                                                 );
                                                             })}
                                                         </div>
@@ -795,6 +829,8 @@ const App: React.FC = () => {
                     </div>
                 </div>
             </main>
+            
+            {/* Modals and Overlays */}
             {geminiModalSectionId && anchorEl && (
                 <GeminiActionModal
                     anchorEl={anchorEl}
@@ -818,7 +854,7 @@ const App: React.FC = () => {
                     onDeleteTake={handleDeleteTake}
                 />
             )}
-             <InitialControls onAddBeat={handleAddBeat} />
+            {isInitialState && recordingState.status !== 'recording' && <InitialControls onAddBeat={handleAddBeat} />}
 
             {beat && (
                 <MasterPlayer beat={beat} onRemoveBeat={handleRemoveBeat} />
